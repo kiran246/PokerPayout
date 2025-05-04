@@ -134,36 +134,42 @@ Project Link: [https://github.com/yourusername/poker-settlement](https://github.
 - [React Native Chart Kit](https://github.com/indiespirit/react-native-chart-kit)
 
 # Steps to Build and Deploy to Apple App Store
-1. Set Up an Apple Developer Account
+##1. Set Up an Apple Developer Account
 If you haven't already, you'll need to:
 
 Register for an Apple Developer Program account ($99/year) at developer.apple.com
 Complete all required agreements and tax forms
 
-2. Prepare App for Submission
+##2. Prepare App for Submission
 
 Generate an iOS Build:
 Using Expo EAS (Expo Application Services):
 bash# Install EAS CLI if you haven't already
 npm install -g eas-cli
 
-# Log in to your Expo account
+### Log in to your Expo account
+```
 eas login
+```
 
-# Configure your project for EAS Build
+### Configure your project for EAS Build
+```
 eas build:configure
+```
 
-# Create a production build for iOS
+### Create a production build for iOS
+```
 eas build --platform ios
+```
 
-Create an App Record in App Store Connect:
+## Create an App Record in App Store Connect:
 
-Log in to App Store Connect
+### Log in to App Store Connect
 Go to "My Apps" and click the "+" button to create a new app
 Fill in the required metadata (app name, bundle ID, SKU, etc.)
 
 
-Prepare App Store Information:
+### Prepare App Store Information:
 
 App description (up to 4000 characters)
 Keywords for App Store search
@@ -175,18 +181,21 @@ App preview video (optional)
 
 
 
-3. Upload and Submit Your App
+##3. Upload and Submit Your App
 
-Upload Your Build:
+###Upload Your Build:
 
 Once your EAS build completes, you can upload it directly:
 
-basheas submit --platform ios
+```
+eas submit --platform ios
+```
 
+```
 Or manually upload the .ipa file using Transporter or Xcode
+```
 
-
-Complete App Store Submission:
+###Complete App Store Submission:
 
 In App Store Connect, select your build
 Complete the "App Review Information" section
@@ -198,20 +207,20 @@ Submit for review
 
 
 
-4. App Review Process
+##4. App Review Process
 
 Apple will review your app to ensure it meets App Store guidelines
 This typically takes 1-3 business days
 You'll receive notifications about the status of your review
 
-5. Release Your App
+##5. Release Your App
 Once approved, you can:
 
-Release immediately
+##Release immediately
 Schedule the release for a specific date
 Manually release when you're ready
 
-Additional Tips for a Successful iOS App Submission
+##Additional Tips for a Successful iOS App Submission
 
 Privacy Policy: Apple requires a privacy policy for all apps. Create a comprehensive policy that explains what data your app collects.
 App Tracking Transparency: If you plan to track users or access their IDFA, implement the App Tracking Transparency framework.
