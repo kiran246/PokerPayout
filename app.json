@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "aceregister",
-    "slug": "aceregister",
+    "name": "PokerPayout",
+    "slug": "PokerPayout",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.edenorioncancer.aceregister",
+      "bundleIdentifier": "com.edenorioncancer.pokerpayout",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
