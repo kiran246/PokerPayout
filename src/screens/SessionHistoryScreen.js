@@ -13,7 +13,8 @@ import {
   StatusBar,
   Image,
   Modal,
-  Dimensions
+  Dimensions,
+  ScrollView // Added ScrollView import
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { setHistory } from '../store/settlementSlice';
@@ -491,6 +492,11 @@ const SessionHistoryScreen = ({ navigation }) => {
           renderItem={renderSessionItem}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
+          // Ensuring proper scroll behavior
+          removeClippedSubviews={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={10}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <FontAwesome5 name="history" size={50} color="#BDC3C7" />
@@ -529,106 +535,99 @@ const SessionHistoryScreen = ({ navigation }) => {
             </View>
             
             {selectedSession && (
-              <>
+              <ScrollView style={styles.modalScrollView}>
                 <Text style={styles.modalDate}>
                   {formatDate(selectedSession.date)}
                 </Text>
                 
                 <View style={styles.modalSection}>
                   <Text style={styles.modalSectionTitle}>Player Balances</Text>
-                  <FlatList
-                    data={Object.entries(selectedSession.balances)
-                      .map(([id, balance]) => [id, getNumericBalance(balance)])
-                      .sort(([_, a], [__, b]) => b - a)} // Sort by balance (highest first)
-                    renderItem={({ item }) => {
-                      const [playerId, balance] = item;
-                      return (
-                        <View style={styles.balanceRow}>
-                          <View style={styles.playerRow}>
-                            <View 
-                              style={[
-                                styles.miniAvatar, 
-                                { backgroundColor: getPlayerAvatar(playerId) }
-                              ]}
-                            >
-                              <Text style={styles.miniAvatarText}>
-                                {getInitials(getPlayerName(playerId))}
-                              </Text>
-                            </View>
-                            <Text style={styles.modalPlayerName}>{getPlayerName(playerId)}</Text>
-                          </View>
-                          <Text 
+                  {/* Changed FlatList to mapping to avoid nested scrolling issues */}
+                  {Object.entries(selectedSession.balances)
+                    .map(([id, balance]) => [id, getNumericBalance(balance)])
+                    .sort(([_, a], [__, b]) => b - a) // Sort by balance (highest first)
+                    .map(([playerId, balance], index) => (
+                      <View key={index} style={styles.balanceRow}>
+                        <View style={styles.playerRow}>
+                          <View 
                             style={[
-                              styles.modalBalance,
-                              balance > 0 ? styles.positiveBalance : balance < 0 ? styles.negativeBalance : styles.neutralBalance
+                              styles.miniAvatar, 
+                              { backgroundColor: getPlayerAvatar(playerId) }
                             ]}
                           >
-                            {balance > 0 ? '+' : balance < 0 ? '' : ''}${balance.toFixed(2)}
-                          </Text>
+                            <Text style={styles.miniAvatarText}>
+                              {getInitials(getPlayerName(playerId))}
+                            </Text>
+                          </View>
+                          <Text style={styles.modalPlayerName}>{getPlayerName(playerId)}</Text>
                         </View>
-                      );
-                    }}
-                    keyExtractor={([playerId]) => playerId}
-                  />
+                        <Text 
+                          style={[
+                            styles.modalBalance,
+                            balance > 0 ? styles.positiveBalance : balance < 0 ? styles.negativeBalance : styles.neutralBalance
+                          ]}
+                        >
+                          {balance > 0 ? '+' : balance < 0 ? '' : ''}${balance.toFixed(2)}
+                        </Text>
+                      </View>
+                    ))
+                  }
                 </View>
                 
                 <View style={styles.modalSection}>
                   <Text style={styles.modalSectionTitle}>Settlements</Text>
                   {selectedSession.settlements.length > 0 ? (
-                    <FlatList
-                      data={selectedSession.settlements}
-                      renderItem={({ item, index }) => (
-                        <View style={styles.settlementRow}>
-                          <View style={styles.settlementNumber}>
-                            <Text style={styles.settlementNumberText}>{index + 1}</Text>
-                          </View>
-                          <View style={styles.settlementDetails}>
-                            <View style={styles.transactionParties}>
-                              <View style={styles.partyContainer}>
-                                <View 
-                                  style={[
-                                    styles.miniAvatar, 
-                                    { backgroundColor: getPlayerAvatar(item.from) }
-                                  ]}
-                                >
-                                  <Text style={styles.miniAvatarText}>
-                                    {getInitials(getPlayerName(item.from))}
-                                  </Text>
-                                </View>
-                                <Text style={styles.partyName} numberOfLines={1}>
-                                  {getPlayerName(item.from)}
+                    // Changed FlatList to mapping to avoid nested scrolling issues
+                    selectedSession.settlements.map((item, index) => (
+                      <View key={index} style={styles.settlementRow}>
+                        <View style={styles.settlementNumber}>
+                          <Text style={styles.settlementNumberText}>{index + 1}</Text>
+                        </View>
+                        <View style={styles.settlementDetails}>
+                          <View style={styles.transactionParties}>
+                            <View style={styles.partyContainer}>
+                              <View 
+                                style={[
+                                  styles.miniAvatar, 
+                                  { backgroundColor: getPlayerAvatar(item.from) }
+                                ]}
+                              >
+                                <Text style={styles.miniAvatarText}>
+                                  {getInitials(getPlayerName(item.from))}
                                 </Text>
                               </View>
-                              
-                              <View style={styles.arrowContainer}>
-                                <MaterialIcons name="arrow-forward" size={18} color="#7F8C8D" />
-                              </View>
-                              
-                              <View style={styles.partyContainer}>
-                                <View 
-                                  style={[
-                                    styles.miniAvatar, 
-                                    { backgroundColor: getPlayerAvatar(item.to) }
-                                  ]}
-                                >
-                                  <Text style={styles.miniAvatarText}>
-                                    {getInitials(getPlayerName(item.to))}
-                                  </Text>
-                                </View>
-                                <Text style={styles.partyName} numberOfLines={1}>
-                                  {getPlayerName(item.to)}
-                                </Text>
-                              </View>
+                              <Text style={styles.partyName} numberOfLines={1}>
+                                {getPlayerName(item.from)}
+                              </Text>
                             </View>
                             
-                            <Text style={styles.modalAmount}>
-                              ${item.amount.toFixed(2)}
-                            </Text>
+                            <View style={styles.arrowContainer}>
+                              <MaterialIcons name="arrow-forward" size={18} color="#7F8C8D" />
+                            </View>
+                            
+                            <View style={styles.partyContainer}>
+                              <View 
+                                style={[
+                                  styles.miniAvatar, 
+                                  { backgroundColor: getPlayerAvatar(item.to) }
+                                ]}
+                              >
+                                <Text style={styles.miniAvatarText}>
+                                  {getInitials(getPlayerName(item.to))}
+                                </Text>
+                              </View>
+                              <Text style={styles.partyName} numberOfLines={1}>
+                                {getPlayerName(item.to)}
+                              </Text>
+                            </View>
                           </View>
+                          
+                          <Text style={styles.modalAmount}>
+                            ${item.amount.toFixed(2)}
+                          </Text>
                         </View>
-                      )}
-                      keyExtractor={(_, index) => index.toString()}
-                    />
+                      </View>
+                    ))
                   ) : (
                     <View style={styles.noSettlementsModalContainer}>
                       <Text style={styles.noSettlementsModalText}>
@@ -648,7 +647,7 @@ const SessionHistoryScreen = ({ navigation }) => {
                   <MaterialIcons name="share" size={20} color="white" />
                   <Text style={styles.shareButtonText}>Share Session Details</Text>
                 </TouchableOpacity>
-              </>
+              </ScrollView>
             )}
           </View>
         </View>
@@ -706,6 +705,7 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 15,
     paddingBottom: 30,
+    // Removed flex: 1 here to avoid FlatList scrolling issues
   },
   animatedContainer: {
     marginBottom: 20,
@@ -895,12 +895,6 @@ const styles = StyleSheet.create({
     borderTopColor: '#EAEAEA',
     marginTop: 8,
   },
-  moreTransactionsText: {
-    fontSize: 14,
-    color: '#3498DB',
-    fontWeight: '600',
-    marginRight: 5,
-  },
   noSettlementsContainer: {
     padding: 15,
     alignItems: 'center',
@@ -914,180 +908,182 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptyContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 30,
     marginTop: 50,
   },
-emptyText: {
-  fontSize: 18,
-  fontWeight: 'bold',
-  color: '#7F8C8D',
-  marginTop: 15,
-},
-emptySubText: {
-  fontSize: 14,
-  color: '#95A5A6',
-  textAlign: 'center',
-  marginTop: 10,
-  marginBottom: 30,
-},
-startSessionButton: {
-  backgroundColor: '#3498DB',
-  paddingVertical: 12,
-  paddingHorizontal: 20,
-  borderRadius: 8,
-},
-startSessionText: {
-  color: 'white',
-  fontSize: 16,
-  fontWeight: 'bold',
-},
-loadingContainer: {
-  flex: 1,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-loadingText: {
-  marginTop: 15,
-  fontSize: 16,
-  color: '#7F8C8D',
-},
-// Modal styles
-modalOverlay: {
-  flex: 1,
-  backgroundColor: 'rgba(0,0,0,0.5)',
-  justifyContent: 'flex-end',
-},
-modalContent: {
-  backgroundColor: 'white',
-  borderTopLeftRadius: 20,
-  borderTopRightRadius: 20,
-  maxHeight: '80%',
-},
-modalHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: 20,
-  borderBottomWidth: 1,
-  borderBottomColor: '#EAEAEA',
-},
-modalTitle: {
-  fontSize: 18,
-  fontWeight: 'bold',
-  color: '#2C3E50',
-},
-closeButton: {
-  padding: 5,
-},
-modalDate: {
-  fontSize: 16,
-  color: '#7F8C8D',
-  textAlign: 'center',
-  marginTop: 5,
-  marginBottom: 15,
-},
-modalSection: {
-  padding: 20,
-  borderBottomWidth: 1,
-  borderBottomColor: '#EAEAEA',
-},
-modalSectionTitle: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#2C3E50',
-  marginBottom: 15,
-},
-balanceRow: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  paddingVertical: 8,
-  borderBottomWidth: 1,
-  borderBottomColor: '#F0F4F8',
-},
-playerRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-modalPlayerName: {
-  fontSize: 16,
-  color: '#2C3E50',
-},
-modalBalance: {
-  fontSize: 16,
-  fontWeight: 'bold',
-},
-positiveBalance: {
-  color: '#2ECC71',
-},
-negativeBalance: {
-  color: '#E74C3C',
-},
-neutralBalance: {
-  color: '#7F8C8D',
-},
-settlementRow: {
-  flexDirection: 'row',
-  marginBottom: 15,
-},
-settlementNumber: {
-  width: 24,
-  height: 24,
-  borderRadius: 12,
-  backgroundColor: '#3498DB',
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginRight: 10,
-},
-settlementNumberText: {
-  color: 'white',
-  fontSize: 12,
-  fontWeight: 'bold',
-},
-settlementDetails: {
-  flex: 1,
-  backgroundColor: '#F9F9F9',
-  borderRadius: 8,
-  padding: 10,
-},
-modalAmount: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#2C3E50',
-  textAlign: 'right',
-  marginTop: 8,
-},
-noSettlementsModalContainer: {
-  padding: 20,
-  alignItems: 'center',
-  backgroundColor: '#F9F9F9',
-  borderRadius: 8,
-},
-noSettlementsModalText: {
-  fontSize: 16,
-  color: '#7F8C8D',
-  fontStyle: 'italic',
-  textAlign: 'center',
-},
-shareButton: {
-  flexDirection: 'row',
-  backgroundColor: '#3498DB',
-  marginHorizontal: 20,
-  marginVertical: 20,
-  padding: 15,
-  borderRadius: 8,
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-shareButtonText: {
-  color: 'white',
-  fontSize: 16,
-  fontWeight: 'bold',
-  marginLeft: 10,
-}
+  emptyText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#7F8C8D',
+    marginTop: 15,
+  },
+  emptySubText: {
+    fontSize: 14,
+    color: '#95A5A6',
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 30,
+  },
+  startSessionButton: {
+    backgroundColor: '#3498DB',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  startSessionText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 15,
+    fontSize: 16,
+    color: '#7F8C8D',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%', // Limiting height to ensure scrollability
+  },
+  modalScrollView: {
+    flexGrow: 0, // Important for proper scrolling
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAEAEA',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  modalDate: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    textAlign: 'center',
+    marginTop: 5,
+    marginBottom: 15,
+  },
+  modalSection: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAEAEA',
+  },
+  modalSectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 15,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F4F8',
+  },
+  playerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalPlayerName: {
+    fontSize: 16,
+    color: '#2C3E50',
+  },
+  modalBalance: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  positiveBalance: {
+    color: '#2ECC71',
+  },
+  negativeBalance: {
+    color: '#E74C3C',
+  },
+  neutralBalance: {
+    color: '#7F8C8D',
+  },
+  settlementRow: {
+    flexDirection: 'row',
+    marginBottom: 15,
+  },
+  settlementNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#3498DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  settlementNumberText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  settlementDetails: {
+    flex: 1,
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+    padding: 10,
+  },
+  modalAmount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    textAlign: 'right',
+    marginTop: 8,
+  },
+  noSettlementsModalContainer: {
+    padding: 20,
+    alignItems: 'center',
+    backgroundColor: '#F9F9F9',
+    borderRadius: 8,
+  },
+  noSettlementsModalText: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  shareButton: {
+    flexDirection: 'row',
+    backgroundColor: '#3498DB',
+    marginHorizontal: 20,
+    marginVertical: 20,
+    padding: 15,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 10,
+  }
 });
 
 export default SessionHistoryScreen;

@@ -192,7 +192,7 @@ const SessionShareScreen = ({ route, navigation }) => {
   
   // Render preview mode with share options
   const renderPreviewMode = () => (
-    <View style={styles.container}>
+    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
       <View style={styles.previewCard}>
         <View style={styles.sessionHeader}>
           <Text style={styles.sessionDate}>{formatDate(session.date)}</Text>
@@ -284,7 +284,7 @@ const SessionShareScreen = ({ route, navigation }) => {
           <Text style={styles.shareOptionText}>PDF</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
   
   // Render loading state
@@ -442,13 +442,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: 'white',
   },
+  backButton: {
+    padding: 8,
+  },
   mainContainer: {
     flex: 1,
     backgroundColor: '#F0F4F8',
   },
-  container: {
+  scrollContainer: {
     flex: 1,
+  },
+  scrollContent: {
     padding: 20,
+    paddingBottom: 40,
   },
   previewCard: {
     backgroundColor: 'white',
