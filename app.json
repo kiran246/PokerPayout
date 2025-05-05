@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.edenorioncancer.pokerpayout",
+      "bundleIdentifier": "com.edenorioncancer.PokerPayout",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -31,7 +31,7 @@
     },
     "extra": {
       "eas": {
-        "projectId": "9dbb618e-ee2d-427e-9ae5-32f8e6e8bf93"
+        "projectId": "5581d6ab-8069-482f-9bd4-e40d6df4161e"
       }
     }
   }

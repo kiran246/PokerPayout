@@ -189,11 +189,18 @@ const SettlementScreen = ({ navigation }) => {
       setIsAutoComplete(false);
     }
     
-    // Validate input: Allow digits, decimal point, and negative sign
-    // This regex allows negative numbers, decimal points, and empty string
+    // Handle negative sign separately
+    if (value === '-') {
+      dispatch(setPlayerBalance({ playerId, amount: value }));
+      return;
+    }
+    
+    // For all other cases, validate input as a number
+    const valueStr = String(value);
+    // This regex allows decimal points and digits
     const regex = /^-?\d*\.?\d*$/;
     
-    if (value === '' || value === '-' || regex.test(value)) {
+    if (valueStr === '' || regex.test(valueStr)) {
       // Update the balance
       dispatch(setPlayerBalance({ playerId, amount: value }));
     }
@@ -371,7 +378,9 @@ const SettlementScreen = ({ navigation }) => {
 
   // Check if a balance is positive or negative for styling
   const getBalanceType = (balance) => {
-    if (balance === '' || balance === '-') return 'neutral';
+    if (balance === '' || balance === '0') return 'neutral';
+    if (balance === '-') return 'negative';
+    
     const numBalance = parseFloat(balance);
     if (isNaN(numBalance)) return 'neutral';
     if (numBalance > 0) return 'positive';
@@ -414,28 +423,63 @@ const SettlementScreen = ({ navigation }) => {
           </View>
           
           <View style={styles.balanceInputContainer}>
-            <Text style={styles.currencySymbol}>$</Text>
-            <TextInput
-              style={[
-                styles.balanceInput,
-                balanceType === 'positive' ? styles.positiveBalance : 
-                balanceType === 'negative' ? styles.negativeBalance : null,
-                isAutoComplete && styles.autoCompleteInput
-              ]}
-              keyboardType="numeric"
-              value={String(balance)}
-              onChangeText={(value) => handleBalanceChange(item.id, value)}
-              onFocus={() => setEditingPlayerId(item.id)}
-              selectTextOnFocus
-              placeholder="0.00"
-            />
-            
-            {isAutoComplete && suggestedBalance !== undefined && (
-              <View style={styles.suggestedBalanceContainer}>
-                <Text style={styles.suggestedBalance}>→ ${formatBalance(suggestedBalance)}</Text>
-              </View>
-            )}
-          </View>
+  {/* Add a sign toggle button */}
+  <TouchableOpacity
+    style={[
+      styles.signButton,
+      balanceType === 'negative' ? styles.negativeButton : styles.positiveButton
+    ]}
+    onPress={() => {
+      // Toggle between positive and negative
+      const currentVal = balances[item.id] !== undefined ? balances[item.id] : 0;
+      const numValue = parseFloat(currentVal) || 0;
+      // If the value is already a number, toggle its sign
+      if (!isNaN(numValue) && numValue !== 0) {
+        handleBalanceChange(item.id, -numValue);
+      } else if (currentVal === '-') {
+        // If it's currently a dash (user started typing negative), make it empty (positive)
+        handleBalanceChange(item.id, '');
+      } else {
+        // Otherwise, make it negative
+        handleBalanceChange(item.id, '-');
+      }
+    }}
+    accessibilityLabel={balanceType === 'negative' ? "Make positive" : "Make negative"}
+  >
+    <Text style={styles.signButtonText}>
+      {balanceType === 'negative' ? '-' : '+'}
+    </Text>
+  </TouchableOpacity>
+  
+  <Text style={styles.currencySymbol}>$</Text>
+  <TextInput
+    style={[
+      styles.balanceInput,
+      balanceType === 'positive' ? styles.positiveBalance : 
+      balanceType === 'negative' ? styles.negativeBalance : null,
+      isAutoComplete && styles.autoCompleteInput
+    ]}
+    keyboardType="decimal-pad"
+    value={String(Math.abs(parseFloat(balance) || 0))}
+    onChangeText={(value) => {
+      // Always apply the correct sign when user is typing
+      if (balanceType === 'negative' && value !== '' && value !== '0') {
+        handleBalanceChange(item.id, -Math.abs(parseFloat(value) || 0));
+      } else {
+        handleBalanceChange(item.id, value);
+      }
+    }}
+    onFocus={() => setEditingPlayerId(item.id)}
+    selectTextOnFocus
+    placeholder="0.00"
+  />
+  
+  {isAutoComplete && suggestedBalance !== undefined && (
+    <View style={styles.suggestedBalanceContainer}>
+      <Text style={styles.suggestedBalance}>→ ${formatBalance(suggestedBalance)}</Text>
+    </View>
+  )}
+</View>
         </View>
       </Animated.View>
     );
@@ -1158,6 +1202,25 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     color: 'white',
     fontWeight: '500',
+  },// Add to your styles object
+  signButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  positiveButton: {
+    backgroundColor: '#2ECC71',
+  },
+  negativeButton: {
+    backgroundColor: '#E74C3C',
+  },
+  signButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   }
 });
 
