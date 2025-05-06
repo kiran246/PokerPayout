@@ -8,7 +8,11 @@ const initialState = {
 
 export const playerSlice = createSlice({
   name: 'players',
-  initialState,
+  initialState: {
+    players: [],
+    loading: false,
+    error: null,
+  },
   reducers: {
     addPlayer: (state, action) => {
       state.players.push({
@@ -22,6 +26,36 @@ export const playerSlice = createSlice({
       const playerIndex = state.players.findIndex(player => player.id === id);
       if (playerIndex !== -1) {
         state.players[playerIndex].name = name;
+      }
+    },
+    // Add new reducers for buy-in tracking
+    recordBuyIn: (state, action) => {
+      const { playerId, amount, timestamp, sessionId } = action.payload;
+      const playerIndex = state.players.findIndex(player => player.id === playerId);
+      
+      if (playerIndex !== -1) {
+        // Initialize buyIns array if it doesn't exist
+        if (!state.players[playerIndex].buyIns) {
+          state.players[playerIndex].buyIns = [];
+        }
+        
+        // Add the buy-in record
+        state.players[playerIndex].buyIns.push({
+          id: Date.now().toString(),
+          amount,
+          timestamp: timestamp || new Date().toISOString(),
+          sessionId
+        });
+      }
+    },
+    deleteBuyIn: (state, action) => {
+      const { playerId, buyInId } = action.payload;
+      const playerIndex = state.players.findIndex(player => player.id === playerId);
+      
+      if (playerIndex !== -1 && state.players[playerIndex].buyIns) {
+        state.players[playerIndex].buyIns = state.players[playerIndex].buyIns.filter(
+          buyIn => buyIn.id !== buyInId
+        );
       }
     },
     deletePlayer: (state, action) => {
@@ -44,7 +78,9 @@ export const {
   updatePlayer, 
   deletePlayer, 
   setPlayers, 
-  setLoading, 
+  setLoading,
+  recordBuyIn,
+  deleteBuyIn, 
   setError 
 } = playerSlice.actions;
 

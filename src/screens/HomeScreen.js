@@ -17,6 +17,7 @@ import { startNewSession, resetSession } from '../store/settlementSlice';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import analyticsUtils from '../utils/analyticsUtils';
+import BuyInSummary from '../components/BuyInSummary';
 
 const { width } = Dimensions.get('window');
 
@@ -221,6 +222,10 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
+          {players.length > 0 && (
+            <BuyInSummary navigation={navigation} />
+          )}
+
           <View style={styles.cardContainer}>
             <TouchableOpacity 
               style={[styles.actionCard, styles.primaryCard]}
@@ -247,6 +252,24 @@ const HomeScreen = ({ navigation }) => {
               >
                 <FontAwesome5 name="history" size={20} color="white" />
                 <Text style={styles.cardTitle}>View History</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.rowContainer}>
+              <TouchableOpacity 
+                style={[styles.actionCard, styles.halfCard, styles.greenCard]}
+                onPress={() => navigation.navigate('BuyInScreen')}
+              >
+                <FontAwesome5 name="money-bill-wave" size={20} color="white" />
+                <Text style={styles.cardTitle}>Track Buy-ins</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.actionCard, styles.halfCard, styles.orangeCard]}
+                onPress={() => navigation.navigate('GameManagementScreen')}
+              >
+                <FontAwesome5 name="gamepad" size={20} color="white" />
+                <Text style={styles.cardTitle}>Manage Games</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -425,14 +448,15 @@ const HomeScreen = ({ navigation }) => {
             
             <Text style={styles.modalSubtitle}>How to use:</Text>
             <Text style={styles.modalListItem}>1. Add your poker players</Text>
-            <Text style={styles.modalListItem}>2. Start a new session</Text>
-            <Text style={styles.modalListItem}>3. Enter each player's balance</Text>
-            <Text style={styles.modalListItem}>4. Get optimal settlement plan</Text>
+            <Text style={styles.modalListItem}>2. Track buy-ins during the game</Text>
+            <Text style={styles.modalListItem}>3. Use the ledger to monitor balances</Text>
+            <Text style={styles.modalListItem}>4. Get optimal settlement plan at the end</Text>
             
             <Text style={styles.modalSubtitle}>Tips:</Text>
             <Text style={styles.modalListItem}>• Positive values for winners</Text>
             <Text style={styles.modalListItem}>• Negative values for losers</Text>
             <Text style={styles.modalListItem}>• All balances must sum to zero</Text>
+            <Text style={styles.modalListItem}>• Create multiple games in a session</Text>
             
             <TouchableOpacity
               style={styles.closeButton}
@@ -519,6 +543,7 @@ const styles = StyleSheet.create({
   rowContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 15,
   },
   halfCard: {
     flex: 0.48,
@@ -529,6 +554,12 @@ const styles = StyleSheet.create({
   },
   purpleCard: {
     backgroundColor: '#9B59B6',
+  },
+  greenCard: {
+    backgroundColor: '#2ECC71',
+  },
+  orangeCard: {
+    backgroundColor: '#F39C12',
   },
   cardTitle: {
     color: 'white',
