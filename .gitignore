@@ -113,6 +113,10 @@ dist
 # FuseBox cache
 .fusebox/
 
+# Expo
+.expo/
+package-lock.json
+
 # DynamoDB Local files
 .dynamodb/
 
