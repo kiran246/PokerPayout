@@ -112,7 +112,57 @@ const GameManagementScreen = ({ navigation }) => {
             </View>
           )}
         </View>
-        
+        <TouchableOpacity
+  style={styles.gameAction}
+  onPress={() => navigation.navigate('GamePlayerManagementScreen', { 
+    gameId: item.id,
+    gameName: item.name
+  })}
+>
+  <MaterialIcons name="group" size={18} color="#3498DB" />
+  <Text style={styles.gameActionText}>Players</Text>
+</TouchableOpacity>
+
+// Make sure it's inside the View with gameActions style:
+<View style={styles.gameActions}>
+  <TouchableOpacity
+    style={styles.gameAction}
+    onPress={() => navigation.navigate('BuyInScreen', { gameId: item.id })}
+  >
+    <MaterialIcons name="attach-money" size={18} color="#3498DB" />
+    <Text style={styles.gameActionText}>Buy-In</Text>
+  </TouchableOpacity>
+  
+  <TouchableOpacity
+    style={styles.gameAction}
+    onPress={() => navigation.navigate('GameLedgerScreen', { gameId: item.id })}
+  >
+    <MaterialIcons name="receipt" size={18} color="#3498DB" />
+    <Text style={styles.gameActionText}>Ledger</Text>
+  </TouchableOpacity>
+  
+  {/* New button to manage players */}
+  <TouchableOpacity
+    style={styles.gameAction}
+    onPress={() => navigation.navigate('GamePlayerManagementScreen', { 
+      gameId: item.id,
+      gameName: item.name
+    })}
+  >
+    <MaterialIcons name="group" size={18} color="#3498DB" />
+    <Text style={styles.gameActionText}>Players</Text>
+  </TouchableOpacity>
+  
+  {stats.isActive && (
+    <TouchableOpacity
+      style={styles.gameAction}
+      onPress={() => handleEndGame(item.id)}
+    >
+      <MaterialIcons name="flag" size={18} color="#3498DB" />
+      <Text style={styles.gameActionText}>End Game</Text>
+    </TouchableOpacity>
+  )}
+</View>
         <View style={styles.gameStats}>
           <View style={styles.statItem}>
             <Text style={styles.statLabel}>Players</Text>

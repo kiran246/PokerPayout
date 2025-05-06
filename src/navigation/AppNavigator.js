@@ -1,4 +1,4 @@
-// Update src/navigation/AppNavigator.js
+// src/navigation/AppNavigator.js
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import HomeScreen from '../screens/HomeScreen';
@@ -10,6 +10,9 @@ import SessionShareScreen from '../screens/SessionShareScreen';
 import BuyInScreen from '../screens/BuyInScreen';
 import GameLedgerScreen from '../screens/GameLedgerScreen';
 import GameManagementScreen from '../screens/GameManagementScreen';
+import GameSessionsScreen from '../screens/GameSessionsScreen';
+import PreSettlementScreen from '../screens/PreSettlementScreen';
+import GamePlayerManagementScreen from '../screens/GamePlayerManagementScreen';
 
 // Default screen options
 const screenOptions = {
@@ -45,7 +48,9 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="Players" 
         component={PlayerScreen} 
-        options={{ title: 'Manage Players' }}
+        options={({ route }) => ({ 
+          title: route.params?.message || 'Manage Players' 
+        })}
       />
       
       <Stack.Screen 
@@ -72,7 +77,6 @@ const AppNavigator = () => {
         options={{ headerShown: false }}
       />
       
-      {/* New screens */}
       <Stack.Screen 
         name="BuyInScreen" 
         component={BuyInScreen} 
@@ -88,6 +92,27 @@ const AppNavigator = () => {
       <Stack.Screen 
         name="GameManagementScreen" 
         component={GameManagementScreen} 
+        options={{ headerShown: false }}
+      />
+      
+      {/* New screen for game sessions for settlement flow */}
+      <Stack.Screen 
+        name="GameSessionsScreen" 
+        component={GameSessionsScreen} 
+        options={{ headerShown: false }}
+      />
+      
+      {/* New screen for settlement flow */}
+      <Stack.Screen 
+        name="PreSettlementScreen" 
+        component={PreSettlementScreen} 
+        options={{ headerShown: false }}
+      />
+      
+      {/* New screen for game-specific player management */}
+      <Stack.Screen 
+        name="GamePlayerManagementScreen" 
+        component={GamePlayerManagementScreen} 
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
