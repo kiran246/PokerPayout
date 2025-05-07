@@ -14,7 +14,7 @@ import {
   Platform
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import { startNewSession, setPlayerBalance } from '../store/settlementSlice';
+import { startNewSession, setPlayerBalance, updateGameBalances } from '../store/settlementSlice';
 import { addPlayer } from '../store/playerSlice';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -187,6 +187,14 @@ const PreSettlementScreen = ({ navigation, route }) => {
         const numBalance = balance === '' || balance === '-' ? 0 : parseFloat(balance) || 0;
         dispatch(setPlayerBalance({ playerId, amount: numBalance }));
       });
+      
+      // If we're in game mode with a gameId, also store the balances with the game
+      if (gameId) {
+        dispatch(updateGameBalances({ 
+          gameId, 
+          balances: playerBalances 
+        }));
+      }
       
       // Navigate to settlement screen
       navigation.navigate('Settlement');

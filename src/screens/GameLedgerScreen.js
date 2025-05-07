@@ -90,35 +90,55 @@ const GameLedgerScreen = ({ route, navigation }) => {
       });
     }
     
-    // Process all transactions
-    sortedTransactions.forEach(transaction => {
-      const { playerId, type, amount } = transaction;
-      
-      // Initialize player stats if not already present
-      if (!playerStats[playerId]) {
-        playerStats[playerId] = {
-          buyIns: 0,
-          buyInCount: 0,
-          cashOuts: 0,
-          cashOutCount: 0,
-          net: 0
-        };
-      }
-      
-      // Parse amount to ensure it's a number
-      const numAmount = Number(amount);
-      
-      // Update stats based on transaction type
-      if (type === 'buy-in') {
-        playerStats[playerId].buyIns += numAmount;
-        playerStats[playerId].buyInCount += 1;
-        playerStats[playerId].net -= numAmount; // Buy-ins decrease net (money spent)
-      } else if (type === 'cash-out') {
-        playerStats[playerId].cashOuts += numAmount;
-        playerStats[playerId].cashOutCount += 1;
-        playerStats[playerId].net += numAmount; // Cash-outs increase net (money received)
-      }
-    });
+    // If there are transactions, process them
+    if (sortedTransactions.length > 0) {
+      // Process all transactions
+      sortedTransactions.forEach(transaction => {
+        const { playerId, type, amount } = transaction;
+        
+        // Initialize player stats if not already present
+        if (!playerStats[playerId]) {
+          playerStats[playerId] = {
+            buyIns: 0,
+            buyInCount: 0,
+            cashOuts: 0,
+            cashOutCount: 0,
+            net: 0
+          };
+        }
+        
+        // Parse amount to ensure it's a number
+        const numAmount = Number(amount);
+        
+        // Update stats based on transaction type
+        if (type === 'buy-in') {
+          playerStats[playerId].buyIns += numAmount;
+          playerStats[playerId].buyInCount += 1;
+          playerStats[playerId].net -= numAmount; // Buy-ins decrease net (money spent)
+        } else if (type === 'cash-out') {
+          playerStats[playerId].cashOuts += numAmount;
+          playerStats[playerId].cashOutCount += 1;
+          playerStats[playerId].net += numAmount; // Cash-outs increase net (money received)
+        }
+      });
+    }
+    // If no transactions but we have balances from settlement, use those
+    else if (currentGame && currentGame.balances) {
+      Object.entries(currentGame.balances).forEach(([playerId, balance]) => {
+        if (!playerStats[playerId]) {
+          playerStats[playerId] = {
+            buyIns: 0,
+            buyInCount: 0,
+            cashOuts: 0,
+            cashOutCount: 0,
+            net: 0
+          };
+        }
+        
+        // Net value is the final balance
+        playerStats[playerId].net = parseFloat(balance) || 0;
+      });
+    }
     
     return playerStats;
   };
@@ -133,7 +153,7 @@ const GameLedgerScreen = ({ route, navigation }) => {
     let uniquePlayers = new Set();
     let buyInAmounts = new Set();
     
-    // Calculate from transactions
+    // Calculate from transactions if available
     if (sortedTransactions.length > 0) {
       // Calculate buy-ins
       sortedTransactions
@@ -153,6 +173,25 @@ const GameLedgerScreen = ({ route, navigation }) => {
         
       // Get unique player IDs
       sortedTransactions.forEach(t => uniquePlayers.add(t.playerId));
+    }
+    // For settlement-only games (no transactions), calculate differently
+    else if (currentGame && currentGame.balances) {
+      // For settlement games, players who lost money (negative balance) 
+      // effectively "bought in" that amount
+      const balances = currentGame.balances;
+      
+      Object.entries(balances).forEach(([playerId, balance]) => {
+        const numBalance = parseFloat(balance) || 0;
+        uniquePlayers.add(playerId);
+        
+        if (numBalance < 0) {
+          // Negative balances represent money put in (buy-ins)
+          totalBuyIns += Math.abs(numBalance);
+        } else if (numBalance > 0) {
+          // Positive balances represent money taken out (cash-outs)
+          totalCashOuts += numBalance;
+        }
+      });
     }
     
     // Default buy-in from game settings
@@ -178,6 +217,12 @@ const GameLedgerScreen = ({ route, navigation }) => {
   
   // Get settlements from session history if available
   const getSettlements = () => {
+    // First, check if we have settlements in the currentGame object
+    if (currentGame && currentGame.settlements && currentGame.settlements.length > 0) {
+      return currentGame.settlements;
+    }
+    
+    // If not, look in history
     if (isHistorical || isCompleted) {
       // Look for settlements in history
       for (const session of history) {
@@ -186,6 +231,13 @@ const GameLedgerScreen = ({ route, navigation }) => {
         }
       }
     }
+    
+    // If no settlements found but we have game balances, we can still show settlements
+    // by looking at the global settlements in the state
+    if (currentGame && currentGame.balances) {
+      return []; // Return empty array as the settlements will be shown from the main state
+    }
+    
     return [];
   };
   
@@ -215,7 +267,7 @@ const GameLedgerScreen = ({ route, navigation }) => {
                 session: { 
                   id: gameId,
                   date: currentGame?.startTime || new Date().toISOString(),
-                  balances: {},
+                  balances: currentGame?.balances || {},
                   settlements: gameSettlements
                 }
               })}
@@ -336,19 +388,37 @@ const GameLedgerScreen = ({ route, navigation }) => {
                   </View>
                   
                   <View style={styles.playerSummaryDetails}>
-                    <View style={styles.playerSummaryDetail}>
-                      <Text style={styles.playerSummaryLabel}>Buy-ins:</Text>
-                      <Text style={styles.playerSummaryValue}>
-                        ${item.buyIns.toFixed(2)} ({item.buyInCount})
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.playerSummaryDetail}>
-                      <Text style={styles.playerSummaryLabel}>Cash-outs:</Text>
-                      <Text style={styles.playerSummaryValue}>
-                        ${item.cashOuts.toFixed(2)} ({item.cashOutCount})
-                      </Text>
-                    </View>
+                    {/* Only show buy-in/cash-out details if there were transactions */}
+                    {(item.buyInCount > 0 || item.cashOutCount > 0) ? (
+                      <>
+                        <View style={styles.playerSummaryDetail}>
+                          <Text style={styles.playerSummaryLabel}>Buy-ins:</Text>
+                          <Text style={styles.playerSummaryValue}>
+                            ${item.buyIns.toFixed(2)} ({item.buyInCount})
+                          </Text>
+                        </View>
+                        
+                        <View style={styles.playerSummaryDetail}>
+                          <Text style={styles.playerSummaryLabel}>Cash-outs:</Text>
+                          <Text style={styles.playerSummaryValue}>
+                            ${item.cashOuts.toFixed(2)} ({item.cashOutCount})
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={styles.playerSummaryDetail}>
+                        <Text style={styles.playerSummaryLabel}>
+                          {item.net > 0 ? 'Won:' : item.net < 0 ? 'Lost:' : 'Balance:'}
+                        </Text>
+                        <Text style={[
+                          styles.playerSummaryValue,
+                          item.net > 0 ? styles.positiveAmount : 
+                          item.net < 0 ? styles.negativeAmount : styles.neutralAmount
+                        ]}>
+                          ${Math.abs(item.net).toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               );
@@ -363,7 +433,7 @@ const GameLedgerScreen = ({ route, navigation }) => {
         </View>
         
         {/* Settlements section */}
-        {isCompleted && gameSettlements.length > 0 && (
+        {(isCompleted || (currentGame && currentGame.balances)) && gameSettlements.length > 0 && (
           <View style={styles.settlementsContainer}>
             <Text style={styles.sectionTitle}>Final Settlements</Text>
             
@@ -426,6 +496,18 @@ const GameLedgerScreen = ({ route, navigation }) => {
               scrollEnabled={false}
               ListEmptyComponent={null}
             />
+          </View>
+        )}
+        
+        {/* No settlements message for completed games */}
+        {isCompleted && gameSettlements.length === 0 && (
+          <View style={styles.settlementsContainer}>
+            <Text style={styles.sectionTitle}>Final Settlements</Text>
+            <View style={styles.noSettlementsContainer}>
+              <Text style={styles.noSettlementsText}>
+                No settlements needed for this game. All balances are even!
+              </Text>
+            </View>
           </View>
         )}
       </ScrollView>
@@ -537,7 +619,7 @@ const GameLedgerScreen = ({ route, navigation }) => {
               session: { 
                 id: gameId,
                 date: currentGame?.startTime || new Date().toISOString(),
-                balances: {},
+                balances: currentGame?.balances || {},
                 settlements: gameSettlements
               }
             })}
@@ -629,6 +711,9 @@ const styles = StyleSheet.create({
   },
   negativeAmount: {
     color: '#E74C3C',
+  },
+  neutralAmount: {
+    color: '#7F8C8D',
   },
   // New styles for buy-in amounts
   buyInAmountsSection: {
@@ -787,61 +872,37 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     marginTop: 20,
   },
   deleteTransactionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    backgroundColor: '#FADBD8',
   },
   deleteTransactionText: {
     color: '#E74C3C',
-    marginLeft: 5,
     fontWeight: '500',
+    marginLeft: 5,
   },
   closeButton: {
-    backgroundColor: '#3498DB',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
+    backgroundColor: '#3498DB',
   },
   closeButtonText: {
     color: 'white',
     fontWeight: 'bold',
   },
-  // Floating share button
-  floatingShareContainer: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    left: 20,
-    alignItems: 'center',
-  },
-  floatingShareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3498DB',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  floatingShareText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  // Styles for player summary
+  // Player summary styles
   playerSummaryContainer: {
     padding: 15,
     paddingTop: 0,
-    marginBottom: 20,
+    marginBottom: 15,
   },
   playerSummaryItem: {
     backgroundColor: 'white',
@@ -863,34 +924,100 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
   },
+  playerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   playerSummaryName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#2C3E50',
   },
   playerNetAmount: {
     fontSize: 18,
     fontWeight: 'bold',
   },
-  neutralAmount: {
-    color: '#7F8C8D',
-  },
   playerSummaryDetails: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
   playerSummaryDetail: {
-    flex: 1,
+    flexDirection: 'row',
+    width: '45%',
+    marginBottom: 5,
   },
   playerSummaryLabel: {
     fontSize: 14,
     color: '#7F8C8D',
+    marginRight: 5,
   },
   playerSummaryValue: {
     fontSize: 14,
-    fontWeight: '500',
     color: '#2C3E50',
-    marginTop: 3,
+    fontWeight: '500',
+  },
+  // No settlements message
+  noSettlementsContainer: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  noSettlementsText: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  // Empty states
+  emptyContainer: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  // Floating share button
+  floatingShareContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    left: 20,
+  },
+  floatingShareButton: {
+    flexDirection: 'row',
+    backgroundColor: '#3498DB',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  floatingShareText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 10,
   },
 });
 

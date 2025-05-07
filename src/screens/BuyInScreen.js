@@ -80,7 +80,12 @@ const BuyInScreen = ({ route, navigation }) => {
       transaction => transaction.playerId === playerId
     );
     
-    const total = buyIns.reduce((sum, transaction) => sum + transaction.amount, 0);
+    const total = buyIns.reduce((sum, transaction) => {
+      // Ensure amount is treated as a number
+      const amount = typeof transaction.amount === 'string' ? 
+        parseFloat(transaction.amount) : Number(transaction.amount);
+      return sum + amount;
+    }, 0);
     
     return {
       count: buyIns.length,
@@ -106,9 +111,9 @@ const BuyInScreen = ({ route, navigation }) => {
     dispatch(recordTransaction({
       type: 'buy-in',
       playerId: selectedPlayerId,
-      amount,
+      amount: amount, // Ensure numeric value
       gameId,
-      description: `Buy-in for $${amount}`
+      description: `Buy-in for $${amount.toFixed(2)}`
     }));
     
     // If this is a game-specific buy-in, add player to game if not already added
@@ -116,7 +121,7 @@ const BuyInScreen = ({ route, navigation }) => {
       dispatch(addPlayerToGame({
         gameId,
         playerId: selectedPlayerId,
-        initialBuyIn: amount
+        initialBuyIn: amount // Ensure numeric value
       }));
     }
     
@@ -151,9 +156,9 @@ const BuyInScreen = ({ route, navigation }) => {
       dispatch(recordTransaction({
         type: 'buy-in',
         playerId,
-        amount: buyInAmount,
+        amount: parseFloat(buyInAmount), // Ensure numeric value
         gameId,
-        description: `Buy-in for $${buyInAmount}`
+        description: `Buy-in for $${parseFloat(buyInAmount).toFixed(2)}`
       }));
       
       // Add player to game if game-specific
@@ -161,7 +166,7 @@ const BuyInScreen = ({ route, navigation }) => {
         dispatch(addPlayerToGame({
           gameId,
           playerId,
-          initialBuyIn: buyInAmount
+          initialBuyIn: parseFloat(buyInAmount) // Ensure numeric value
         }));
       }
     });
@@ -196,7 +201,7 @@ const BuyInScreen = ({ route, navigation }) => {
     // Dispatch action to update the transaction amount
     dispatch(updateTransactionAmount({
       transactionId: editingTransaction.id,
-      newAmount: amount
+      newAmount: amount // Ensure numeric value
     }));
     
     // Reset state
@@ -219,7 +224,7 @@ const BuyInScreen = ({ route, navigation }) => {
     // Update the custom buy-in amount for this player
     setCustomBuyIns({
       ...customBuyIns,
-      [selectedPlayerId]: amount
+      [selectedPlayerId]: amount // Store as numeric value
     });
     
     setTempCustomAmount('');
@@ -388,6 +393,9 @@ const BuyInScreen = ({ route, navigation }) => {
             keyExtractor={item => item.id}
             renderItem={({ item }) => {
               const player = players.find(p => p.id === item.playerId);
+              // Ensure amount is treated as number for display
+              const amount = typeof item.amount === 'string' ? 
+                parseFloat(item.amount) : Number(item.amount);
               
               return (
                 <View style={styles.buyInItem}>
@@ -407,7 +415,7 @@ const BuyInScreen = ({ route, navigation }) => {
                         {player ? player.name : 'Unknown Player'}
                       </Text>
                     </View>
-                    <Text style={styles.buyInAmount}>${item.amount.toFixed(2)}</Text>
+                    <Text style={styles.buyInAmount}>${amount.toFixed(2)}</Text>
                   </View>
                   
                   <View style={styles.buyInFooter}>
@@ -466,8 +474,7 @@ const BuyInScreen = ({ route, navigation }) => {
     );
   };
   
-  return (
-    <SafeAreaView style={styles.safeArea}>
+  return (<SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
       <LinearGradient
         colors={['#2C3E50', '#4CA1AF']}
@@ -486,7 +493,9 @@ const BuyInScreen = ({ route, navigation }) => {
           {currentGame && currentGame.buyIn > 0 && (
             <View style={styles.defaultBuyInBadge}>
               <Text style={styles.defaultBuyInText}>
-                Default: ${currentGame.buyIn}
+                Default: ${typeof currentGame.buyIn === 'string' ? 
+                  parseFloat(currentGame.buyIn).toFixed(2) : 
+                  currentGame.buyIn.toFixed(2)}
               </Text>
             </View>
           )}
@@ -606,7 +615,9 @@ const BuyInScreen = ({ route, navigation }) => {
             {currentGame && currentGame.buyIn > 0 && (
               <View style={styles.defaultBuyInOption}>
                 <Text style={styles.defaultBuyInLabel}>
-                  Use default buy-in (${currentGame.buyIn})
+                  Use default buy-in (${typeof currentGame.buyIn === 'string' ? 
+                    parseFloat(currentGame.buyIn).toFixed(2) : 
+                    currentGame.buyIn.toFixed(2)})
                 </Text>
                 <Switch
                   value={useDefaultBuyIn}
@@ -734,7 +745,9 @@ const BuyInScreen = ({ route, navigation }) => {
                 </Text>
                 
                 <Text style={styles.currentAmountText}>
-                  Current amount: ${editingTransaction.amount.toFixed(2)}
+                  Current amount: ${typeof editingTransaction.amount === 'string' ? 
+                    parseFloat(editingTransaction.amount).toFixed(2) : 
+                    editingTransaction.amount.toFixed(2)}
                 </Text>
                 
                 <TextInput
@@ -951,6 +964,13 @@ const styles = StyleSheet.create({
   buyInTime: {
     fontSize: 12,
     color: '#7F8C8D',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+  },
+  editButton: {
+    padding: 5,
+    marginRight: 5,
   },
   deleteButton: {
     padding: 5,

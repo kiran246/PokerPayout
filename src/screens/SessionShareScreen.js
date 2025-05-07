@@ -25,6 +25,7 @@ import sharingUtils from '../utils/sharingUtils';
 const SessionShareScreen = ({ route, navigation }) => {
   const { session } = route.params;
   const { players } = useSelector(state => state.players);
+  const { games } = useSelector(state => state.settlements);
   
   const [emailAddress, setEmailAddress] = useState('');
   const [shareMethod, setShareMethod] = useState(''); // 'email', 'whatsapp', 'copy', 'pdf'
@@ -50,15 +51,53 @@ const SessionShareScreen = ({ route, navigation }) => {
   
   // Format a player balance for display
   const formatBalance = (playerId) => {
-    if (!session.balances || !session.balances[playerId]) return '$0.00';
+    // Look for balance in session balances first
+    if (session.balances && session.balances[playerId] !== undefined) {
+      const balance = parseFloat(session.balances[playerId]) || 0;
+      const isPositive = balance > 0;
+      const prefix = isPositive ? '+' : '';
+      
+      return {
+        formatted: `${prefix}$${Math.abs(balance).toFixed(2)}`,
+        color: isPositive ? '#2ECC71' : balance < 0 ? '#E74C3C' : '#7F8C8D'
+      };
+    }
     
-    const balance = parseFloat(session.balances[playerId]) || 0;
-    const isPositive = balance > 0;
-    const prefix = isPositive ? '+' : '';
+    // If not in session balances, check if there's a game with balances
+    if (session.games && session.games.length > 0) {
+      for (const game of session.games) {
+        if (game.balances && game.balances[playerId] !== undefined) {
+          const balance = parseFloat(game.balances[playerId]) || 0;
+          const isPositive = balance > 0;
+          const prefix = isPositive ? '+' : '';
+          
+          return {
+            formatted: `${prefix}$${Math.abs(balance).toFixed(2)}`,
+            color: isPositive ? '#2ECC71' : balance < 0 ? '#E74C3C' : '#7F8C8D'
+          };
+        }
+      }
+    }
     
+    // Check current game state if it matches session ID
+    if (games && games.length > 0) {
+      const sessionGame = games.find(g => g.id === session.id);
+      if (sessionGame && sessionGame.balances && sessionGame.balances[playerId] !== undefined) {
+        const balance = parseFloat(sessionGame.balances[playerId]) || 0;
+        const isPositive = balance > 0;
+        const prefix = isPositive ? '+' : '';
+        
+        return {
+          formatted: `${prefix}$${Math.abs(balance).toFixed(2)}`,
+          color: isPositive ? '#2ECC71' : balance < 0 ? '#E74C3C' : '#7F8C8D'
+        };
+      }
+    }
+    
+    // Default if no balance found
     return {
-      formatted: `${prefix}$${Math.abs(balance).toFixed(2)}`,
-      color: isPositive ? '#2ECC71' : balance < 0 ? '#E74C3C' : '#7F8C8D'
+      formatted: '$0.00',
+      color: '#7F8C8D'
     };
   };
   
@@ -66,6 +105,37 @@ const SessionShareScreen = ({ route, navigation }) => {
   const getPlayerName = (playerId) => {
     const player = players.find(p => p.id === playerId);
     return player ? player.name : 'Unknown Player';
+  };
+  
+  // Get all players who have balances in this session
+  const getSessionPlayers = () => {
+    const sessionPlayerIds = new Set();
+    
+    // Check direct session balances
+    if (session.balances) {
+      Object.keys(session.balances).forEach(id => sessionPlayerIds.add(id));
+    }
+    
+    // Check game balances
+    if (session.games && session.games.length > 0) {
+      session.games.forEach(game => {
+        if (game.balances) {
+          Object.keys(game.balances).forEach(id => sessionPlayerIds.add(id));
+        }
+        if (game.players) {
+          game.players.forEach(player => sessionPlayerIds.add(player.playerId));
+        }
+      });
+    }
+    
+    // Get the full player objects
+    return Array.from(sessionPlayerIds).map(id => {
+      const player = players.find(p => p.id === id);
+      return {
+        id,
+        name: player ? player.name : 'Unknown Player'
+      };
+    });
   };
   
   // Handle share via email
@@ -191,101 +261,111 @@ const SessionShareScreen = ({ route, navigation }) => {
   };
   
   // Render preview mode with share options
-  const renderPreviewMode = () => (
-    <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.previewCard}>
-        <View style={styles.sessionHeader}>
-          <Text style={styles.sessionDate}>{formatDate(session.date)}</Text>
-        </View>
-        
-        <View style={styles.sectionTitle}>
-          <Text style={styles.sectionTitleText}>Final Balances</Text>
-        </View>
-        
-        {Object.entries(session.balances).map(([playerId]) => {
-          const balance = formatBalance(playerId);
-          return (
-            <View key={playerId} style={styles.balanceRow}>
-              <Text style={styles.playerName}>{getPlayerName(playerId)}</Text>
-              <Text style={[styles.balanceText, { color: balance.color }]}>
-                {balance.formatted}
+  const renderPreviewMode = () => {
+    const sessionPlayers = getSessionPlayers();
+    
+    return (
+      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.previewCard}>
+          <View style={styles.sessionHeader}>
+            <Text style={styles.sessionDate}>{formatDate(session.date)}</Text>
+          </View>
+          
+          <View style={styles.sectionTitle}>
+            <Text style={styles.sectionTitleText}>Final Balances</Text>
+          </View>
+          
+          {sessionPlayers.length > 0 ? (
+            sessionPlayers.map(player => {
+              const balance = formatBalance(player.id);
+              return (
+                <View key={player.id} style={styles.balanceRow}>
+                  <Text style={styles.playerName}>{player.name}</Text>
+                  <Text style={[styles.balanceText, { color: balance.color }]}>
+                    {balance.formatted}
+                  </Text>
+                </View>
+              );
+            })
+          ) : (
+            <View style={styles.emptyBalances}>
+              <Text style={styles.emptyText}>No player balances found</Text>
+            </View>
+          )}
+          
+          <View style={styles.sectionTitle}>
+            <Text style={styles.sectionTitleText}>Settlements</Text>
+          </View>
+          
+          {session.settlements && session.settlements.length > 0 ? (
+            session.settlements.map((settlement, index) => (
+              <View key={index} style={styles.settlementRow}>
+                <View style={styles.settlementNumber}>
+                  <Text style={styles.settlementNumberText}>{index + 1}</Text>
+                </View>
+                <View style={styles.settlementDetails}>
+                  <Text style={styles.settlementText}>
+                    {getPlayerName(settlement.from)} pays {getPlayerName(settlement.to)}
+                  </Text>
+                  <Text style={styles.settlementAmount}>
+                    ${settlement.amount.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptySettlements}>
+              <Text style={styles.emptySettlementsText}>
+                No settlements needed
               </Text>
             </View>
-          );
-        })}
-        
-        <View style={styles.sectionTitle}>
-          <Text style={styles.sectionTitleText}>Settlements</Text>
+          )}
         </View>
         
-        {session.settlements && session.settlements.length > 0 ? (
-          session.settlements.map((settlement, index) => (
-            <View key={index} style={styles.settlementRow}>
-              <View style={styles.settlementNumber}>
-                <Text style={styles.settlementNumberText}>{index + 1}</Text>
-              </View>
-              <View style={styles.settlementDetails}>
-                <Text style={styles.settlementText}>
-                  {getPlayerName(settlement.from)} pays {getPlayerName(settlement.to)}
-                </Text>
-                <Text style={styles.settlementAmount}>
-                  ${settlement.amount.toFixed(2)}
-                </Text>
-              </View>
+        <View style={styles.shareOptions}>
+          <TouchableOpacity
+            style={styles.shareOption}
+            onPress={handleShareViaEmail}
+          >
+            <View style={[styles.shareIconContainer, { backgroundColor: '#E74C3C' }]}>
+              <MaterialIcons name="email" size={24} color="white" />
             </View>
-          ))
-        ) : (
-          <View style={styles.emptySettlements}>
-            <Text style={styles.emptySettlementsText}>
-              No settlements needed
-            </Text>
-          </View>
-        )}
-      </View>
-      
-      <View style={styles.shareOptions}>
-        <TouchableOpacity
-          style={styles.shareOption}
-          onPress={handleShareViaEmail}
-        >
-          <View style={[styles.shareIconContainer, { backgroundColor: '#E74C3C' }]}>
-            <MaterialIcons name="email" size={24} color="white" />
-          </View>
-          <Text style={styles.shareOptionText}>Email</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.shareOption}
-          onPress={handleShareViaWhatsApp}
-        >
-          <View style={[styles.shareIconContainer, { backgroundColor: '#25D366' }]}>
-            <FontAwesome name="whatsapp" size={24} color="white" />
-          </View>
-          <Text style={styles.shareOptionText}>WhatsApp</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.shareOption}
-          onPress={handleCopyToClipboard}
-        >
-          <View style={[styles.shareIconContainer, { backgroundColor: '#3498DB' }]}>
-            <MaterialIcons name="content-copy" size={24} color="white" />
-          </View>
-          <Text style={styles.shareOptionText}>Copy</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={styles.shareOption}
-          onPress={handleGeneratePdf}
-        >
-          <View style={[styles.shareIconContainer, { backgroundColor: '#9B59B6' }]}>
-            <MaterialIcons name="picture-as-pdf" size={24} color="white" />
-          </View>
-          <Text style={styles.shareOptionText}>PDF</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
-  );
+            <Text style={styles.shareOptionText}>Email</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.shareOption}
+            onPress={handleShareViaWhatsApp}
+          >
+            <View style={[styles.shareIconContainer, { backgroundColor: '#25D366' }]}>
+              <FontAwesome name="whatsapp" size={24} color="white" />
+            </View>
+            <Text style={styles.shareOptionText}>WhatsApp</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.shareOption}
+            onPress={handleCopyToClipboard}
+          >
+            <View style={[styles.shareIconContainer, { backgroundColor: '#3498DB' }]}>
+              <MaterialIcons name="content-copy" size={24} color="white" />
+            </View>
+            <Text style={styles.shareOptionText}>Copy</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.shareOption}
+            onPress={handleGeneratePdf}
+          >
+            <View style={[styles.shareIconContainer, { backgroundColor: '#9B59B6' }]}>
+              <MaterialIcons name="picture-as-pdf" size={24} color="white" />
+            </View>
+            <Text style={styles.shareOptionText}>PDF</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  };
   
   // Render loading state
   const renderLoadingState = () => (
@@ -501,6 +581,16 @@ const styles = StyleSheet.create({
   balanceText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  emptyBalances: {
+    padding: 10,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
   settlementRow: {
     flexDirection: 'row',

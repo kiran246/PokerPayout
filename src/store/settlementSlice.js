@@ -85,6 +85,7 @@ export const settlementSlice = createSlice({
         buyIn: buyIn || 0,
         players: [], // Players who joined this specific game
         transactions: [], // In-game transactions
+        balances: {}, // New field to store the player balances for this game specifically
       });
     },
     
@@ -279,6 +280,35 @@ export const settlementSlice = createSlice({
         }
       }
     },
+
+    // New reducer to update game balances
+    updateGameBalances: (state, action) => {
+      const { gameId, balances } = action.payload;
+      const gameIndex = state.games.findIndex(game => game.id === gameId);
+      
+      if (gameIndex !== -1) {
+        // Initialize balances object if it doesn't exist
+        if (!state.games[gameIndex].balances) {
+          state.games[gameIndex].balances = {};
+        }
+        
+        // Store the balances
+        Object.entries(balances).forEach(([playerId, balance]) => {
+          const numBalance = balance === '' || balance === '-' ? 0 : parseFloat(balance) || 0;
+          state.games[gameIndex].balances[playerId] = numBalance;
+        });
+      }
+    },
+
+    // New reducer to save settlements for a specific game
+    saveGameSettlements: (state, action) => {
+      const { gameId, settlements } = action.payload;
+      const gameIndex = state.games.findIndex(game => game.id === gameId);
+      
+      if (gameIndex !== -1) {
+        state.games[gameIndex].settlements = settlements;
+      }
+    }
   }
 });
 
@@ -293,7 +323,7 @@ export const {
   setLoading,
   setError,
   resetSession,
-  // New actions
+  // Game management actions
   startNewGame,
   endGame,
   addPlayerToGame,
@@ -301,7 +331,10 @@ export const {
   deleteTransaction,
   updateGameDetails,
   updatePlayerStack,
-  updateTransactionAmount
+  updateTransactionAmount,
+  // New actions
+  updateGameBalances,
+  saveGameSettlements
 } = settlementSlice.actions;
 
 export default settlementSlice.reducer;
