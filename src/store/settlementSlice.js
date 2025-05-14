@@ -300,6 +300,16 @@ export const settlementSlice = createSlice({
       }
     },
 
+    deleteGame: (state, action) => {
+      const { gameId } = action.payload;
+      
+      // Remove game from the games array
+      state.games = state.games.filter(game => game.id !== gameId);
+      
+      // Also remove any transactions related to this game
+      state.gameLog = state.gameLog.filter(transaction => transaction.gameId !== gameId);
+    },
+
     // New reducer to save settlements for a specific game
     saveGameSettlements: (state, action) => {
       const { gameId, settlements } = action.payload;
@@ -334,6 +344,7 @@ export const {
   updateTransactionAmount,
   // New actions
   updateGameBalances,
+  deleteGame,
   saveGameSettlements
 } = settlementSlice.actions;
 
