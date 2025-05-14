@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,18 @@ import {
   SafeAreaView,
   StatusBar,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  ScrollView,
+  Keyboard,
+  Dimensions
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
 import { startNewSession, setPlayerBalance, updateGameBalances } from '../store/settlementSlice';
-import { addPlayer } from '../store/playerSlice';
+import { addPlayer, updatePlayer, deletePlayer } from '../store/playerSlice';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+
+const { height } = Dimensions.get('window');
 
 const PreSettlementScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
@@ -31,8 +36,17 @@ const PreSettlementScreen = ({ navigation, route }) => {
   const [selectedPlayers, setSelectedPlayers] = useState([]);
   const [playerBalances, setPlayerBalances] = useState({});
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+  const [showEditPlayerModal, setShowEditPlayerModal] = useState(false);
+  const [selectedPlayerForEdit, setSelectedPlayerForEdit] = useState(null);
   const [newPlayerName, setNewPlayerName] = useState('');
+  const [editingPlayerName, setEditingPlayerName] = useState('');
   const [totalBalance, setTotalBalance] = useState(0);
+  const [editingPlayerId, setEditingPlayerId] = useState(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showPlayerOptionsModal, setShowPlayerOptionsModal] = useState(false);
+  
+  // Refs for scrolling
+  const scrollViewRef = useRef(null);
   
   // Skip to balance entry if we already have a gameId
   useEffect(() => {
@@ -66,6 +80,120 @@ const PreSettlementScreen = ({ navigation, route }) => {
     }, 0);
     setTotalBalance(parseFloat(total.toFixed(2)));
   }, [playerBalances]);
+  
+  // Keyboard event listeners
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      (event) => {
+        setKeyboardHeight(event.endCoordinates.height);
+        
+        // Scroll to the currently editing input
+        if (editingPlayerId && scrollViewRef.current) {
+          // Find the index of the player being edited
+          const playerIndex = selectedPlayers.findIndex(p => p.id === editingPlayerId);
+          if (playerIndex !== -1) {
+            // Calculate approximate position to scroll to (adjust as needed)
+            const position = playerIndex * 70;
+            
+            // Add a short delay to ensure the keyboard is fully shown
+            setTimeout(() => {
+              scrollViewRef.current.scrollTo({
+                y: position,
+                animated: true
+              });
+            }, 100);
+          }
+        }
+      }
+    );
+    
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+    
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, [editingPlayerId, selectedPlayers]);
+
+  // Show player options modal (edit/delete)
+  const showPlayerOptions = (player) => {
+    setSelectedPlayerForEdit(player);
+    setShowPlayerOptionsModal(true);
+  };
+  
+  // Handle editing a player
+  const handleEditPlayer = () => {
+    setShowPlayerOptionsModal(false);
+    setEditingPlayerName(selectedPlayerForEdit.name);
+    setShowEditPlayerModal(true);
+  };
+
+  // Save edited player
+  const saveEditedPlayer = () => {
+    if (!editingPlayerName.trim()) {
+      Alert.alert('Error', 'Please enter a player name');
+      return;
+    }
+    
+    // Check if name is already taken by another player
+    const nameExists = players.some(
+      player => player.id !== selectedPlayerForEdit.id && 
+                player.name.toLowerCase() === editingPlayerName.trim().toLowerCase()
+    );
+    
+    if (nameExists) {
+      Alert.alert('Duplicate Name', 'Another player with this name already exists');
+      return;
+    }
+    
+    // Update player in Redux
+    dispatch(updatePlayer({ 
+      id: selectedPlayerForEdit.id, 
+      name: editingPlayerName.trim() 
+    }));
+    
+    setShowEditPlayerModal(false);
+    setEditingPlayerName('');
+    setSelectedPlayerForEdit(null);
+  };
+  
+  // Handle deleting a player
+  const handleDeletePlayer = () => {
+    setShowPlayerOptionsModal(false);
+    
+    Alert.alert(
+      'Delete Player',
+      `Are you sure you want to delete ${selectedPlayerForEdit.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: () => {
+            // Remove from selected players if selected
+            if (selectedPlayers.some(p => p.id === selectedPlayerForEdit.id)) {
+              setSelectedPlayers(selectedPlayers.filter(p => p.id !== selectedPlayerForEdit.id));
+              
+              // Also remove their balance if they're in the balance list
+              const updatedBalances = { ...playerBalances };
+              delete updatedBalances[selectedPlayerForEdit.id];
+              setPlayerBalances(updatedBalances);
+            }
+            
+            // Delete from Redux
+            dispatch(deletePlayer(selectedPlayerForEdit.id));
+            setSelectedPlayerForEdit(null);
+          }
+        }
+      ]
+    );
+  };
   
   // Generate a random color for player avatar
   const getRandomColor = () => {
@@ -243,7 +371,8 @@ const PreSettlementScreen = ({ navigation, route }) => {
       </View>
       
       <Text style={styles.stepDescription}>
-        Select all players who participated in this game
+        Select all players who participated in this game.
+        Long press a player to edit or delete.
       </Text>
       
       <FlatList
@@ -256,6 +385,8 @@ const PreSettlementScreen = ({ navigation, route }) => {
               selectedPlayers.some(p => p.id === item.id) && styles.selectedPlayerItem
             ]}
             onPress={() => togglePlayerSelection(item)}
+            onLongPress={() => showPlayerOptions(item)}
+            delayLongPress={500}
           >
             <View style={styles.playerInfo}>
               <View 
@@ -271,13 +402,22 @@ const PreSettlementScreen = ({ navigation, route }) => {
               <Text style={styles.playerName}>{item.name}</Text>
             </View>
             
-            <View style={[
-              styles.checkbox,
-              selectedPlayers.some(p => p.id === item.id) && styles.checkboxSelected
-            ]}>
-              {selectedPlayers.some(p => p.id === item.id) && (
-                <MaterialIcons name="check" size={18} color="white" />
-              )}
+            <View style={styles.playerActions}>
+              <TouchableOpacity
+                style={styles.playerActionButton}
+                onPress={() => showPlayerOptions(item)}
+              >
+                <MaterialIcons name="more-vert" size={20} color="#7F8C8D" />
+              </TouchableOpacity>
+              
+              <View style={[
+                styles.checkbox,
+                selectedPlayers.some(p => p.id === item.id) && styles.checkboxSelected
+              ]}>
+                {selectedPlayers.some(p => p.id === item.id) && (
+                  <MaterialIcons name="check" size={18} color="white" />
+                )}
+              </View>
             </View>
           </TouchableOpacity>
         )}
@@ -302,6 +442,18 @@ const PreSettlementScreen = ({ navigation, route }) => {
     </View>
   );
   
+  // Check if a balance is positive or negative for styling
+  const getBalanceType = (balance) => {
+    if (balance === '' || balance === '0') return 'neutral';
+    if (balance === '-') return 'negative';
+    
+    const numBalance = parseFloat(balance);
+    if (isNaN(numBalance)) return 'neutral';
+    if (numBalance > 0) return 'positive';
+    if (numBalance < 0) return 'negative';
+    return 'neutral';
+  };
+  
   // Render Balances input (Step 3)
   const renderBalancesStep = () => (
     <View style={styles.stepContainer}>
@@ -320,27 +472,33 @@ const PreSettlementScreen = ({ navigation, route }) => {
         </Text>
       </View>
       
-      <FlatList
-        data={selectedPlayers}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => {
-          const balance = playerBalances[item.id] || '0';
+      <ScrollView 
+        ref={scrollViewRef}
+        style={[
+          styles.balanceScrollView,
+          {maxHeight: height - 350 - keyboardHeight} // Adjust based on your layout
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
+      >
+        {selectedPlayers.map((player, index) => {
+          const balance = playerBalances[player.id] || '0';
           const balanceType = getBalanceType(balance);
           
           return (
-            <View style={styles.balanceItem}>
+            <View key={player.id} style={styles.balanceItem}>
               <View style={styles.playerInfo}>
                 <View 
                   style={[
                     styles.avatar, 
-                    { backgroundColor: item.avatarColor || '#3498DB' }
+                    { backgroundColor: player.avatarColor || '#3498DB' }
                   ]}
                 >
                   <Text style={styles.avatarText}>
-                    {item.name.substring(0, 2).toUpperCase()}
+                    {player.name.substring(0, 2).toUpperCase()}
                   </Text>
                 </View>
-                <Text style={styles.playerName}>{item.name}</Text>
+                <Text style={styles.playerName}>{player.name}</Text>
               </View>
               
               <View style={styles.balanceInputContainer}>
@@ -351,15 +509,15 @@ const PreSettlementScreen = ({ navigation, route }) => {
                   ]}
                   onPress={() => {
                     // Toggle between positive and negative
-                    const currentVal = playerBalances[item.id] || '0';
+                    const currentVal = playerBalances[player.id] || '0';
                     const numValue = parseFloat(currentVal) || 0;
                     
                     if (!isNaN(numValue) && numValue !== 0) {
-                      handleBalanceChange(item.id, -numValue);
+                      handleBalanceChange(player.id, -numValue);
                     } else if (currentVal === '-') {
-                      handleBalanceChange(item.id, '');
+                      handleBalanceChange(player.id, '');
                     } else {
-                      handleBalanceChange(item.id, '-');
+                      handleBalanceChange(player.id, '-');
                     }
                   }}
                 >
@@ -379,19 +537,21 @@ const PreSettlementScreen = ({ navigation, route }) => {
                   value={balance === '-' ? '' : String(Math.abs(parseFloat(balance) || 0))}
                   onChangeText={(value) => {
                     if (balanceType === 'negative' && value !== '' && value !== '0') {
-                      handleBalanceChange(item.id, -Math.abs(parseFloat(value) || 0));
+                      handleBalanceChange(player.id, -Math.abs(parseFloat(value) || 0));
                     } else {
-                      handleBalanceChange(item.id, value);
+                      handleBalanceChange(player.id, value);
                     }
                   }}
+                  onFocus={() => setEditingPlayerId(player.id)}
+                  onBlur={() => setEditingPlayerId(null)}
                   selectTextOnFocus
                   placeholder="0.00"
                 />
               </View>
             </View>
           );
-        }}
-      />
+        })}
+      </ScrollView>
       
       <View style={styles.balanceNote}>
         <MaterialIcons name="info-outline" size={20} color="#7F8C8D" />
@@ -401,19 +561,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
       </View>
     </View>
   );
-  
-  // Helper function to check if a balance is positive or negative for styling
-  const getBalanceType = (balance) => {
-    if (balance === '' || balance === '0') return 'neutral';
-    if (balance === '-') return 'negative';
-    
-    const numBalance = parseFloat(balance);
-    if (isNaN(numBalance)) return 'neutral';
-    if (numBalance > 0) return 'positive';
-    if (numBalance < 0) return 'negative';
-    return 'neutral';
-  };
-  
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" />
@@ -509,6 +657,105 @@ const PreSettlementScreen = ({ navigation, route }) => {
                 <Text style={styles.addButtonText}>Add Player</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Edit Player Modal */}
+      <Modal
+        visible={showEditPlayerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditPlayerModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Edit Player</Text>
+            
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Player name"
+              value={editingPlayerName}
+              onChangeText={setEditingPlayerName}
+              autoFocus
+            />
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setEditingPlayerName('');
+                  setShowEditPlayerModal(false);
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.modalButton, 
+                  styles.addButton,
+                  !editingPlayerName.trim() && styles.disabledButton
+                ]}
+                onPress={saveEditedPlayer}
+                disabled={!editingPlayerName.trim()}
+              >
+                <Text style={styles.addButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Player Options Modal */}
+      <Modal
+        visible={showPlayerOptionsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPlayerOptionsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.playerOptionsModal}>
+            {selectedPlayerForEdit && (
+              <>
+                <View style={styles.playerOptionsHeader}>
+                  <View 
+                    style={[
+                      styles.avatarLarge, 
+                      { backgroundColor: selectedPlayerForEdit.avatarColor || '#3498DB' }
+                    ]}
+                  >
+                    <Text style={styles.avatarLargeText}>
+                      {selectedPlayerForEdit.name.substring(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={styles.playerOptionsName}>{selectedPlayerForEdit.name}</Text>
+                </View>
+                
+                <TouchableOpacity 
+                  style={styles.playerOptionItem}
+                  onPress={handleEditPlayer}
+                >
+                  <MaterialIcons name="edit" size={24} color="#3498DB" />
+                  <Text style={styles.playerOptionText}>Edit Player</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.playerOptionItem}
+                  onPress={handleDeletePlayer}
+                >
+                  <MaterialIcons name="delete" size={24} color="#E74C3C" />
+                  <Text style={[styles.playerOptionText, { color: '#E74C3C' }]}>Delete Player</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.playerOptionItem, styles.playerOptionCancel]}
+                  onPress={() => setShowPlayerOptionsModal(false)}
+                >
+                  <Text style={styles.playerOptionCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -726,6 +973,9 @@ const styles = StyleSheet.create({
   balanceUneven: {
     color: '#E74C3C',
   },
+  balanceScrollView: {
+    marginBottom: 10,
+  },
   balanceItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -809,8 +1059,8 @@ const styles = StyleSheet.create({
   nextButton: {
     flexDirection: 'row',
     backgroundColor: '#3498DB',
-    paddingVertical: 15,
     borderRadius: 10,
+    padding: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -820,7 +1070,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 10,
   },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -879,6 +1128,68 @@ const styles = StyleSheet.create({
   disabledButton: {
     opacity: 0.5,
   },
+  playerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playerActionButton: {
+    padding: 5,
+    marginRight: 10,
+  },
+  playerOptionsModal: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+  },
+  playerOptionsHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAEAEA',
+  },
+  avatarLarge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  avatarLargeText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  playerOptionsName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  playerOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  playerOptionText: {
+    fontSize: 16,
+    marginLeft: 15,
+    color: '#2C3E50',
+  },
+  playerOptionCancel: {
+    justifyContent: 'center',
+    marginTop: 10,
+    borderBottomWidth: 0,
+  },
+  playerOptionCancelText: {
+    color: '#7F8C8D',
+    fontSize: 16,
+    fontWeight: '500',
+  },
 });
-
-export default PreSettlementScreen;
