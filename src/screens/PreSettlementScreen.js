@@ -1135,7 +1135,8 @@ const styles = StyleSheet.create({
     color: '#7F8C8D',
     fontSize: 16,
     fontWeight: '500',
-  }Items: 'center',
+  },
+  Items: {
     justifyContent: 'center',
     marginTop: 15,
   },
