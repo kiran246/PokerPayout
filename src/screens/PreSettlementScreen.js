@@ -44,6 +44,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
   const [editingPlayerId, setEditingPlayerId] = useState(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showPlayerOptionsModal, setShowPlayerOptionsModal] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   
   // Refs for scrolling
   const scrollViewRef = useRef(null);
@@ -86,24 +87,23 @@ const PreSettlementScreen = ({ navigation, route }) => {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       (event) => {
+        setKeyboardVisible(true);
         setKeyboardHeight(event.endCoordinates.height);
         
-        // Scroll to the currently editing input
+        // Scroll to the currently editing input after a slight delay
+        // to ensure keyboard is fully shown
         if (editingPlayerId && scrollViewRef.current) {
-          // Find the index of the player being edited
-          const playerIndex = selectedPlayers.findIndex(p => p.id === editingPlayerId);
-          if (playerIndex !== -1) {
-            // Calculate approximate position to scroll to (adjust as needed)
-            const position = playerIndex * 70;
-            
-            // Add a short delay to ensure the keyboard is fully shown
-            setTimeout(() => {
+          setTimeout(() => {
+            // Find the index of the player being edited
+            const playerIndex = selectedPlayers.findIndex(p => p.id === editingPlayerId);
+            if (playerIndex !== -1) {
+              // ScrollTo with additional offset to ensure visibility
               scrollViewRef.current.scrollTo({
-                y: position,
+                y: playerIndex * 90 + 150, // Adjust the multiplier based on your item height
                 animated: true
               });
-            }, 100);
-          }
+            }
+          }, 300);
         }
       }
     );
@@ -111,6 +111,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
     const keyboardDidHideListener = Keyboard.addListener(
       'keyboardDidHide',
       () => {
+        setKeyboardVisible(false);
         setKeyboardHeight(0);
       }
     );
@@ -472,17 +473,20 @@ const PreSettlementScreen = ({ navigation, route }) => {
         </Text>
       </View>
       
+      {/* Adjust ScrollView to account for keyboard */}
       <ScrollView 
         ref={scrollViewRef}
         style={[
           styles.balanceScrollView,
-          {maxHeight: height - 350 - keyboardHeight} // Adjust based on your layout
+          {maxHeight: keyboardVisible ? height - 380 : height - 250}
         ]}
+        contentContainerStyle={styles.balanceScrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={true}
       >
         {selectedPlayers.map((player, index) => {
-          const balance = playerBalances[player.id] || '0';
+          const balance = playerBalances[player.id] !== undefined ? playerBalances[player.id] : '0';
+          const isEditing = editingPlayerId === player.id;
           const balanceType = getBalanceType(balance);
           
           return (
@@ -551,6 +555,9 @@ const PreSettlementScreen = ({ navigation, route }) => {
             </View>
           );
         })}
+        
+        {/* Add extra padding at the bottom to ensure visibility when keyboard is shown */}
+        <View style={{ height: keyboardVisible ? 200 : 50 }} />
       </ScrollView>
       
       <View style={styles.balanceNote}>
@@ -602,17 +609,20 @@ const PreSettlementScreen = ({ navigation, route }) => {
         {step === 2 && renderPlayersStep()}
         {step === 3 && renderBalancesStep()}
         
-        <View style={styles.buttonsContainer}>
-          <TouchableOpacity
-            style={styles.nextButton}
-            onPress={handleNextStep}
-          >
-            <Text style={styles.nextButtonText}>
-              {step < 3 ? 'Continue' : 'Calculate Settlements'}
-            </Text>
-            <MaterialIcons name="arrow-forward" size={20} color="white" />
-          </TouchableOpacity>
-        </View>
+        {/* Only show bottom buttons when keyboard is not visible in balance step */}
+        {(step !== 3 || !keyboardVisible) && (
+          <View style={styles.buttonsContainer}>
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={handleNextStep}
+            >
+              <Text style={styles.nextButtonText}>
+                {step < 3 ? 'Continue' : 'Calculate Settlements'}
+              </Text>
+              <MaterialIcons name="arrow-forward" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
       
       {/* Add Player Modal */}
@@ -791,75 +801,6 @@ const styles = StyleSheet.create({
   stepIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 15,
-  },
-  stepDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  activeStepDot: {
-    backgroundColor: 'white',
-  },
-  stepLine: {
-    width: 30,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    marginHorizontal: 5,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: '#F0F4F8',
-  },
-  stepContainer: {
-    flex: 1,
-    padding: 20,
-  },
-  stepHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  stepTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    marginBottom: 10,
-  },
-  stepDescription: {
-    fontSize: 16,
-    color: '#7F8C8D',
-    marginBottom: 20,
-  },
-  addPlayerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3498DB',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  addPlayerButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-    marginLeft: 5,
-  },
-  titleInput: {
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 18,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    marginBottom: 15,
-  },
-  playerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: 'white',
     borderRadius: 10,
@@ -974,12 +915,15 @@ const styles = StyleSheet.create({
     color: '#E74C3C',
   },
   balanceScrollView: {
-    marginBottom: 10,
+    flex: 1,
+  },
+  balanceScrollContent: {
+    paddingBottom: 20,
   },
   balanceItem: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: 'white',
     borderRadius: 10,
     padding: 15,
@@ -1191,6 +1135,429 @@ const styles = StyleSheet.create({
     color: '#7F8C8D',
     fontSize: 16,
     fontWeight: '500',
+  }Items: 'center',
+    justifyContent: 'center',
+    marginTop: 15,
+  },
+  stepDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  activeStepDot: {
+    backgroundColor: 'white',
+  },
+  stepLine: {
+    width: 30,
+    height: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 5,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#F0F4F8',
+  },
+  stepContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  stepHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  stepTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 10,
+  },
+  stepDescription: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    marginBottom: 20,
+  },
+  addPlayerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3498DB',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  addPlayerButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+    marginLeft: 5,
+  },
+  titleInput: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 18,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    marginBottom: 15,
+  },
+  playerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  selectedPlayerItem: {
+    backgroundColor: '#E1F0FF',
+    borderWidth: 1,
+    borderColor: '#3498DB',
+  },
+  playerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  avatarText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  playerName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2C3E50',
+    flex: 1,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#3498DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#3498DB',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 30,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#7F8C8D',
+    marginBottom: 15,
+  },
+  addFirstPlayerButton: {
+    backgroundColor: '#3498DB',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+  },
+  addFirstPlayerText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  balanceSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  balanceSummaryContent: {
+    flex: 1,
+  },
+  balanceSummaryLabel: {
+    fontSize: 12,
+    color: '#7F8C8D',
+    marginBottom: 4,
+  },
+  balanceSummaryValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  balanceEven: {
+    color: '#2ECC71',
+  },
+  balanceUneven: {
+    color: '#E74C3C',
+  },
+  // Auto-balance button
+  autoBalanceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3498DB',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  autoBalanceText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 14,
+    marginLeft: 5,
+  },
+  balanceScrollView: {
+    flex: 1,
+  },
+  balanceScrollViewContent: {
+    paddingBottom: 20,
+  },
+  balanceItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  balanceInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  signButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  positiveButton: {
+    backgroundColor: '#2ECC71',
+  },
+  negativeButton: {
+    backgroundColor: '#E74C3C',
+  },
+  signButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginRight: 2,
+  },
+  balanceInput: {
+    width: 80,
+    height: 40,
+    borderWidth: 1,
+    borderColor: '#BDC3C7',
+    borderRadius: 5,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: 'bold',
+    backgroundColor: '#FAFAFA',
+  },
+  focusedInput: {
+    borderWidth: 2,
+    backgroundColor: '#FFFFFF',
+  },
+  positiveBalance: {
+    borderColor: '#2ECC71',
+    color: '#2ECC71',
+  },
+  negativeBalance: {
+    borderColor: '#E74C3C',
+    color: '#E74C3C',
+  },
+  balanceNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9F9',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  balanceNoteText: {
+    fontSize: 14,
+    color: '#7F8C8D',
+    marginLeft: 10,
+  },
+  buttonsContainer: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#EAEAEA',
+    backgroundColor: 'white',
+  },
+  nextButton: {
+    flexDirection: 'row',
+    backgroundColor: '#3498DB',
+    borderRadius: 10,
+    padding: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginRight: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#F0F4F8',
+    marginRight: 10,
+  },
+  cancelButtonText: {
+    color: '#7F8C8D',
+    fontWeight: 'bold',
+  },
+  addButton: {
+    backgroundColor: '#3498DB',
+    marginLeft: 10,
+  },
+  addButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  playerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playerActionButton: {
+    padding: 5,
+    marginRight: 10,
+  },
+  playerOptionsModal: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    width: '100%',
+    position: 'absolute',
+    bottom: 0,
+  },
+  playerOptionsHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EAEAEA',
+  },
+  avatarLarge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  avatarLargeText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  playerOptionsName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  playerOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  playerOptionText: {
+    fontSize: 16,
+    marginLeft: 15,
+    color: '#2C3E50',
+  },
+  playerOptionCancel: {
+    justifyContent: 'center',
+    marginTop: 10,
+    borderBottomWidth: 0,
+  },
+  playerOptionCancelText: {
+    color: '#7F8C8D',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 
