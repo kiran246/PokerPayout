@@ -82,29 +82,13 @@ const PreSettlementScreen = ({ navigation, route }) => {
     setTotalBalance(parseFloat(total.toFixed(2)));
   }, [playerBalances]);
   
-  // Keyboard event listeners
+  // Improved keyboard event listeners
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       (event) => {
         setKeyboardVisible(true);
         setKeyboardHeight(event.endCoordinates.height);
-        
-        // Scroll to the currently editing input after a slight delay
-        // to ensure keyboard is fully shown
-        if (editingPlayerId && scrollViewRef.current) {
-          setTimeout(() => {
-            // Find the index of the player being edited
-            const playerIndex = selectedPlayers.findIndex(p => p.id === editingPlayerId);
-            if (playerIndex !== -1) {
-              // ScrollTo with additional offset to ensure visibility
-              scrollViewRef.current.scrollTo({
-                y: playerIndex * 90 + 150, // Adjust the multiplier based on your item height
-                animated: true
-              });
-            }
-          }, 300);
-        }
       }
     );
     
@@ -113,6 +97,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
       () => {
         setKeyboardVisible(false);
         setKeyboardHeight(0);
+        setEditingPlayerId(null);
       }
     );
     
@@ -120,7 +105,27 @@ const PreSettlementScreen = ({ navigation, route }) => {
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
     };
-  }, [editingPlayerId, selectedPlayers]);
+  }, []);
+
+  // Auto-scroll to editing player when keyboard appears
+  useEffect(() => {
+    if (editingPlayerId && keyboardVisible && scrollViewRef.current) {
+      setTimeout(() => {
+        const playerIndex = selectedPlayers.findIndex(p => p.id === editingPlayerId);
+        if (playerIndex !== -1) {
+          // Calculate the position of the input field
+          const itemHeight = 90; // Approximate height of each balance item
+          const headerHeight = 200; // Approximate height of header elements
+          const scrollPosition = headerHeight + (playerIndex * itemHeight);
+          
+          scrollViewRef.current.scrollTo({
+            y: scrollPosition,
+            animated: true
+          });
+        }
+      }, 100); // Short delay to ensure keyboard is shown
+    }
+  }, [editingPlayerId, keyboardVisible, selectedPlayers]);
 
   // Show player options modal (edit/delete)
   const showPlayerOptions = (player) => {
@@ -455,34 +460,47 @@ const PreSettlementScreen = ({ navigation, route }) => {
     return 'neutral';
   };
   
-  // Render Balances input (Step 3)
+  // Render Balances input (Step 3) - FIXED VERSION
   const renderBalancesStep = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.stepTitle}>Enter Balances</Text>
-      <Text style={styles.stepDescription}>
-        Enter the final balance for each player (positive for winners, negative for losers)
-      </Text>
-      
-      <View style={styles.balanceSummary}>
-        <Text style={styles.balanceSummaryLabel}>Balance Sum</Text>
-        <Text style={[
-          styles.balanceSummaryValue,
-          Math.abs(totalBalance) < 0.01 ? styles.balanceEven : styles.balanceUneven
-        ]}>
-          ${totalBalance.toFixed(2)}
+    <KeyboardAvoidingView 
+      style={styles.balancesContainer}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <View style={styles.balancesHeader}>
+        <Text style={styles.stepTitle}>Enter Balances</Text>
+        <Text style={styles.stepDescription}>
+          Enter the final balance for each player (positive for winners, negative for losers)
         </Text>
+        
+        <View style={styles.balanceSummary}>
+          <Text style={styles.balanceSummaryLabel}>Balance Sum</Text>
+          <Text style={[
+            styles.balanceSummaryValue,
+            Math.abs(totalBalance) < 0.01 ? styles.balanceEven : styles.balanceUneven
+          ]}>
+            ${totalBalance.toFixed(2)}
+          </Text>
+        </View>
       </View>
       
-      {/* Adjust ScrollView to account for keyboard */}
       <ScrollView 
         ref={scrollViewRef}
         style={[
           styles.balanceScrollView,
-          {maxHeight: keyboardVisible ? height - 380 : height - 250}
+          {
+            maxHeight: keyboardVisible 
+              ? height - keyboardHeight - 180 // Adjust based on keyboard height
+              : height - 300 // Normal height when keyboard is hidden
+          }
         ]}
-        contentContainerStyle={styles.balanceScrollContent}
+        contentContainerStyle={[
+          styles.balanceScrollContent,
+          { paddingBottom: keyboardVisible ? 50 : 20 }
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={true}
+        nestedScrollEnabled={true}
       >
         {selectedPlayers.map((player, index) => {
           const balance = playerBalances[player.id] !== undefined ? playerBalances[player.id] : '0';
@@ -535,7 +553,8 @@ const PreSettlementScreen = ({ navigation, route }) => {
                   style={[
                     styles.balanceInput,
                     balanceType === 'positive' ? styles.positiveBalance : 
-                    balanceType === 'negative' ? styles.negativeBalance : null
+                    balanceType === 'negative' ? styles.negativeBalance : null,
+                    isEditing && styles.focusedInput
                   ]}
                   keyboardType="decimal-pad"
                   value={balance === '-' ? '' : String(Math.abs(parseFloat(balance) || 0))}
@@ -546,18 +565,30 @@ const PreSettlementScreen = ({ navigation, route }) => {
                       handleBalanceChange(player.id, value);
                     }
                   }}
-                  onFocus={() => setEditingPlayerId(player.id)}
-                  onBlur={() => setEditingPlayerId(null)}
+                  onFocus={() => {
+                    setEditingPlayerId(player.id);
+                  }}
+                  onBlur={() => {
+                    // Don't reset editingPlayerId here to keep the auto-scroll working
+                  }}
                   selectTextOnFocus
                   placeholder="0.00"
+                  returnKeyType="next"
+                  onSubmitEditing={() => {
+                    // Move to next input
+                    const currentIndex = selectedPlayers.findIndex(p => p.id === player.id);
+                    if (currentIndex < selectedPlayers.length - 1) {
+                      setEditingPlayerId(selectedPlayers[currentIndex + 1].id);
+                    } else {
+                      setEditingPlayerId(null);
+                      Keyboard.dismiss();
+                    }
+                  }}
                 />
               </View>
             </View>
           );
         })}
-        
-        {/* Add extra padding at the bottom to ensure visibility when keyboard is shown */}
-        <View style={{ height: keyboardVisible ? 200 : 50 }} />
       </ScrollView>
       
       <View style={styles.balanceNote}>
@@ -566,7 +597,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
           The sum of all balances must equal zero
         </Text>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 
   return (
@@ -600,11 +631,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
         </View>
       </LinearGradient>
       
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
-      >
+      <View style={styles.container}>
         {step === 1 && renderGameTitleStep()}
         {step === 2 && renderPlayersStep()}
         {step === 3 && renderBalancesStep()}
@@ -623,7 +650,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         )}
-      </KeyboardAvoidingView>
+      </View>
       
       {/* Add Player Modal */}
       <Modal
@@ -812,334 +839,6 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  selectedPlayerItem: {
-    backgroundColor: '#E1F0FF',
-    borderWidth: 1,
-    borderColor: '#3498DB',
-  },
-  playerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  avatarText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  playerName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#2C3E50',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#3498DB',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxSelected: {
-    backgroundColor: '#3498DB',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: 30,
-    backgroundColor: 'white',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#7F8C8D',
-    marginBottom: 15,
-  },
-  addFirstPlayerButton: {
-    backgroundColor: '#3498DB',
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 8,
-  },
-  addFirstPlayerText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  selectionSummary: {
-    padding: 15,
-    alignItems: 'center',
-  },
-  selectionText: {
-    fontSize: 16,
-    color: '#7F8C8D',
-  },
-  balanceSummary: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  balanceSummaryLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#2C3E50',
-  },
-  balanceSummaryValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  balanceEven: {
-    color: '#2ECC71',
-  },
-  balanceUneven: {
-    color: '#E74C3C',
-  },
-  balanceScrollView: {
-    flex: 1,
-  },
-  balanceScrollContent: {
-    paddingBottom: 20,
-  },
-  balanceItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  balanceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  signButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  positiveButton: {
-    backgroundColor: '#2ECC71',
-  },
-  negativeButton: {
-    backgroundColor: '#E74C3C',
-  },
-  signButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  currencySymbol: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    marginRight: 2,
-  },
-  balanceInput: {
-    width: 80,
-    height: 40,
-    borderWidth: 1,
-    borderColor: '#BDC3C7',
-    borderRadius: 5,
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  positiveBalance: {
-    borderColor: '#2ECC71',
-    color: '#2ECC71',
-  },
-  negativeBalance: {
-    borderColor: '#E74C3C',
-    color: '#E74C3C',
-  },
-  balanceNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9F9',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 10,
-  },
-  balanceNoteText: {
-    fontSize: 14,
-    color: '#7F8C8D',
-    marginLeft: 10,
-  },
-  buttonsContainer: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#EAEAEA',
-    backgroundColor: 'white',
-  },
-  nextButton: {
-    flexDirection: 'row',
-    backgroundColor: '#3498DB',
-    borderRadius: 10,
-    padding: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginRight: 10,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    padding: 20,
-    width: '100%',
-    maxWidth: 400,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
-    marginBottom: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  modalButton: {
-    flex: 1,
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#F0F4F8',
-    marginRight: 10,
-  },
-  cancelButtonText: {
-    color: '#7F8C8D',
-    fontWeight: 'bold',
-  },
-  addButton: {
-    backgroundColor: '#3498DB',
-    marginLeft: 10,
-  },
-  addButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  disabledButton: {
-    opacity: 0.5,
-  },
-  playerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  playerActionButton: {
-    padding: 5,
-    marginRight: 10,
-  },
-  playerOptionsModal: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    width: '100%',
-    position: 'absolute',
-    bottom: 0,
-  },
-  playerOptionsHeader: {
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EAEAEA',
-  },
-  avatarLarge: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  avatarLargeText: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  playerOptionsName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-  },
-  playerOptionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  playerOptionText: {
-    fontSize: 16,
-    marginLeft: 15,
-    color: '#2C3E50',
-  },
-  playerOptionCancel: {
-    justifyContent: 'center',
-    marginTop: 10,
-    borderBottomWidth: 0,
-  },
-  playerOptionCancelText: {
-    color: '#7F8C8D',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  Items: {
-    justifyContent: 'center',
-    marginTop: 15,
-  },
   stepDot: {
     width: 12,
     height: 12,
@@ -1246,6 +945,14 @@ const styles = StyleSheet.create({
     color: '#2C3E50',
     flex: 1,
   },
+  playerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playerActionButton: {
+    padding: 5,
+    marginRight: 10,
+  },
   checkbox: {
     width: 24,
     height: 24,
@@ -1284,6 +991,23 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
+  selectionSummary: {
+    padding: 15,
+    alignItems: 'center',
+  },
+  selectionText: {
+    fontSize: 16,
+    color: '#7F8C8D',
+  },
+  
+  // NEW IMPROVED BALANCE STEP STYLES
+  balancesContainer: {
+    flex: 1,
+  },
+  balancesHeader: {
+    padding: 20,
+    paddingBottom: 15,
+  },
   balanceSummary: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1291,25 +1015,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 10,
     padding: 15,
-    marginBottom: 15,
+    marginTop: 15,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
-  balanceSummaryContent: {
-    flex: 1,
-  },
   balanceSummaryLabel: {
-    fontSize: 12,
-    color: '#7F8C8D',
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#2C3E50',
   },
   balanceSummaryValue: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#2C3E50',
   },
   balanceEven: {
     color: '#2ECC71',
@@ -1317,25 +1037,11 @@ const styles = StyleSheet.create({
   balanceUneven: {
     color: '#E74C3C',
   },
-  // Auto-balance button
-  autoBalanceButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#3498DB',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  autoBalanceText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-    marginLeft: 5,
-  },
   balanceScrollView: {
     flex: 1,
+    paddingHorizontal: 20,
   },
-  balanceScrollViewContent: {
+  balanceScrollContent: {
     paddingBottom: 20,
   },
   balanceItem: {
@@ -1394,6 +1100,7 @@ const styles = StyleSheet.create({
   },
   focusedInput: {
     borderWidth: 2,
+    borderColor: '#3498DB',
     backgroundColor: '#FFFFFF',
   },
   positiveBalance: {
@@ -1409,14 +1116,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F8F9F9',
     padding: 15,
+    marginHorizontal: 20,
     borderRadius: 10,
-    marginTop: 10,
+    marginBottom: 10,
   },
   balanceNoteText: {
     fontSize: 14,
     color: '#7F8C8D',
     marginLeft: 10,
   },
+  
   buttonsContainer: {
     padding: 20,
     borderTopWidth: 1,
@@ -1437,6 +1146,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: 10,
   },
+  
+  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1495,14 +1206,8 @@ const styles = StyleSheet.create({
   disabledButton: {
     opacity: 0.5,
   },
-  playerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  playerActionButton: {
-    padding: 5,
-    marginRight: 10,
-  },
+  
+  // Player options modal
   playerOptionsModal: {
     backgroundColor: 'white',
     borderTopLeftRadius: 20,

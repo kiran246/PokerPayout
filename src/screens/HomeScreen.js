@@ -66,7 +66,7 @@ const HomeScreen = ({ navigation }) => {
         style={styles.gradient}
       >
         <View style={styles.header}>
-          <Text style={styles.appTitle}>Poker Settlement</Text>
+          <Text style={styles.appTitle}>Poker Settlement App Kiran</Text>
           <Text style={styles.appSubtitle}>Track and settle poker debts easily</Text>
         </View>
 
