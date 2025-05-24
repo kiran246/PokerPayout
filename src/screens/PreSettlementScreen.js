@@ -82,7 +82,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
     setTotalBalance(parseFloat(total.toFixed(2)));
   }, [playerBalances]);
   
-  // Improved keyboard event listeners
+  // Keyboard event listeners
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
@@ -107,25 +107,23 @@ const PreSettlementScreen = ({ navigation, route }) => {
     };
   }, []);
 
-  // Auto-scroll to editing player when keyboard appears
+  // Auto-scroll to editing player
   useEffect(() => {
-    if (editingPlayerId && keyboardVisible && scrollViewRef.current) {
+    if (editingPlayerId && keyboardVisible && scrollViewRef.current && step === 3) {
       setTimeout(() => {
         const playerIndex = selectedPlayers.findIndex(p => p.id === editingPlayerId);
         if (playerIndex !== -1) {
-          // Calculate the position of the input field
-          const itemHeight = 90; // Approximate height of each balance item
-          const headerHeight = 200; // Approximate height of header elements
-          const scrollPosition = headerHeight + (playerIndex * itemHeight);
+          const itemHeight = 80;
+          const scrollPosition = playerIndex * itemHeight;
           
           scrollViewRef.current.scrollTo({
             y: scrollPosition,
             animated: true
           });
         }
-      }, 100); // Short delay to ensure keyboard is shown
+      }, 300);
     }
-  }, [editingPlayerId, keyboardVisible, selectedPlayers]);
+  }, [editingPlayerId, keyboardVisible, selectedPlayers, step]);
 
   // Show player options modal (edit/delete)
   const showPlayerOptions = (player) => {
@@ -204,14 +202,8 @@ const PreSettlementScreen = ({ navigation, route }) => {
   // Generate a random color for player avatar
   const getRandomColor = () => {
     const colors = [
-      '#3498DB', // Blue
-      '#2ECC71', // Green
-      '#E74C3C', // Red
-      '#9B59B6', // Purple
-      '#F1C40F', // Yellow
-      '#1ABC9C', // Turquoise
-      '#D35400', // Orange
-      '#34495E', // Dark Blue
+      '#3498DB', '#2ECC71', '#E74C3C', '#9B59B6', 
+      '#F1C40F', '#1ABC9C', '#D35400', '#34495E'
     ];
     return colors[Math.floor(Math.random() * colors.length)];
   };
@@ -237,7 +229,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
       return;
     }
     
-    // Actually add the player through Redux
+    // Add the player through Redux
     dispatch(addPlayer({ 
       name: newPlayerName.trim(),
       avatarColor: getRandomColor()
@@ -246,7 +238,6 @@ const PreSettlementScreen = ({ navigation, route }) => {
     setNewPlayerName('');
     setShowAddPlayerModal(false);
     
-    // Show success message
     Alert.alert('Success', 'Player added successfully!');
   };
   
@@ -309,9 +300,7 @@ const PreSettlementScreen = ({ navigation, route }) => {
         Alert.alert(
           'Balances Don\'t Sum to Zero',
           `The sum of all balances is ${totalBalance.toFixed(2)}. Balances must sum to zero.`,
-          [
-            { text: 'OK' }
-          ]
+          [{ text: 'OK' }]
         );
         return;
       }
@@ -460,145 +449,133 @@ const PreSettlementScreen = ({ navigation, route }) => {
     return 'neutral';
   };
   
-  // Render Balances input (Step 3) - FIXED VERSION
-  const renderBalancesStep = () => (
-    <KeyboardAvoidingView 
-      style={styles.balancesContainer}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
-      <View style={styles.balancesHeader}>
-        <Text style={styles.stepTitle}>Enter Balances</Text>
-        <Text style={styles.stepDescription}>
-          Enter the final balance for each player (positive for winners, negative for losers)
-        </Text>
+  // SIMPLIFIED Render Balances input (Step 3)
+  const renderBalancesStep = () => {
+    // Calculate available height for the list
+    const availableHeight = keyboardVisible 
+      ? height - keyboardHeight - 250 // Leave space for header and keyboard
+      : height - 300; // Normal height when keyboard is hidden
+
+    return (
+      <View style={styles.balancesContainer}>
+        {/* Fixed Header */}
+        <View style={styles.balancesHeader}>
+          <Text style={styles.stepTitle}>Enter Balances</Text>
+          <Text style={styles.stepDescription}>
+            Enter the final balance for each player (positive for winners, negative for losers)
+          </Text>
+          
+          <View style={styles.balanceSummary}>
+            <Text style={styles.balanceSummaryLabel}>Balance Sum</Text>
+            <Text style={[
+              styles.balanceSummaryValue,
+              Math.abs(totalBalance) < 0.01 ? styles.balanceEven : styles.balanceUneven
+            ]}>
+              ${totalBalance.toFixed(2)}
+            </Text>
+          </View>
+        </View>
         
-        <View style={styles.balanceSummary}>
-          <Text style={styles.balanceSummaryLabel}>Balance Sum</Text>
-          <Text style={[
-            styles.balanceSummaryValue,
-            Math.abs(totalBalance) < 0.01 ? styles.balanceEven : styles.balanceUneven
-          ]}>
-            ${totalBalance.toFixed(2)}
+        {/* Scrollable Balance List */}
+        <FlatList
+          ref={scrollViewRef}
+          data={selectedPlayers}
+          keyExtractor={(item) => item.id}
+          style={[styles.balancesList, { maxHeight: availableHeight }]}
+          contentContainerStyle={styles.balancesListContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={true}
+          renderItem={({ item, index }) => {
+            const balance = playerBalances[item.id] !== undefined ? playerBalances[item.id] : '0';
+            const isEditing = editingPlayerId === item.id;
+            const balanceType = getBalanceType(balance);
+            
+            return (
+              <View style={styles.balanceItem}>
+                <View style={styles.playerInfo}>
+                  <View 
+                    style={[
+                      styles.avatar, 
+                      { backgroundColor: item.avatarColor || '#3498DB' }
+                    ]}
+                  >
+                    <Text style={styles.avatarText}>
+                      {item.name.substring(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={styles.playerName}>{item.name}</Text>
+                </View>
+                
+                <View style={styles.balanceInputContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.signButton,
+                      balanceType === 'negative' ? styles.negativeButton : styles.positiveButton
+                    ]}
+                    onPress={() => {
+                      const currentVal = playerBalances[item.id] || '0';
+                      const numValue = parseFloat(currentVal) || 0;
+                      
+                      if (!isNaN(numValue) && numValue !== 0) {
+                        handleBalanceChange(item.id, -numValue);
+                      } else if (currentVal === '-') {
+                        handleBalanceChange(item.id, '');
+                      } else {
+                        handleBalanceChange(item.id, '-');
+                      }
+                    }}
+                  >
+                    <Text style={styles.signButtonText}>
+                      {balanceType === 'negative' ? '-' : '+'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.currencySymbol}>$</Text>
+                  <TextInput
+                    style={[
+                      styles.balanceInput,
+                      balanceType === 'positive' ? styles.positiveBalance : 
+                      balanceType === 'negative' ? styles.negativeBalance : null,
+                      isEditing && styles.focusedInput
+                    ]}
+                    keyboardType="decimal-pad"
+                    value={balance === '-' ? '' : String(Math.abs(parseFloat(balance) || 0))}
+                    onChangeText={(value) => {
+                      if (balanceType === 'negative' && value !== '' && value !== '0') {
+                        handleBalanceChange(item.id, -Math.abs(parseFloat(value) || 0));
+                      } else {
+                        handleBalanceChange(item.id, value);
+                      }
+                    }}
+                    onFocus={() => setEditingPlayerId(item.id)}
+                    selectTextOnFocus
+                    placeholder="0.00"
+                    returnKeyType={index < selectedPlayers.length - 1 ? "next" : "done"}
+                    onSubmitEditing={() => {
+                      if (index < selectedPlayers.length - 1) {
+                        setEditingPlayerId(selectedPlayers[index + 1].id);
+                      } else {
+                        setEditingPlayerId(null);
+                        Keyboard.dismiss();
+                      }
+                    }}
+                  />
+                </View>
+              </View>
+            );
+          }}
+        />
+        
+        {/* Fixed Footer */}
+        <View style={styles.balanceNote}>
+          <MaterialIcons name="info-outline" size={20} color="#7F8C8D" />
+          <Text style={styles.balanceNoteText}>
+            The sum of all balances must equal zero
           </Text>
         </View>
       </View>
-      
-      <ScrollView 
-        ref={scrollViewRef}
-        style={[
-          styles.balanceScrollView,
-          {
-            maxHeight: keyboardVisible 
-              ? height - keyboardHeight - 180 // Adjust based on keyboard height
-              : height - 300 // Normal height when keyboard is hidden
-          }
-        ]}
-        contentContainerStyle={[
-          styles.balanceScrollContent,
-          { paddingBottom: keyboardVisible ? 50 : 20 }
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={true}
-        nestedScrollEnabled={true}
-      >
-        {selectedPlayers.map((player, index) => {
-          const balance = playerBalances[player.id] !== undefined ? playerBalances[player.id] : '0';
-          const isEditing = editingPlayerId === player.id;
-          const balanceType = getBalanceType(balance);
-          
-          return (
-            <View key={player.id} style={styles.balanceItem}>
-              <View style={styles.playerInfo}>
-                <View 
-                  style={[
-                    styles.avatar, 
-                    { backgroundColor: player.avatarColor || '#3498DB' }
-                  ]}
-                >
-                  <Text style={styles.avatarText}>
-                    {player.name.substring(0, 2).toUpperCase()}
-                  </Text>
-                </View>
-                <Text style={styles.playerName}>{player.name}</Text>
-              </View>
-              
-              <View style={styles.balanceInputContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.signButton,
-                    balanceType === 'negative' ? styles.negativeButton : styles.positiveButton
-                  ]}
-                  onPress={() => {
-                    // Toggle between positive and negative
-                    const currentVal = playerBalances[player.id] || '0';
-                    const numValue = parseFloat(currentVal) || 0;
-                    
-                    if (!isNaN(numValue) && numValue !== 0) {
-                      handleBalanceChange(player.id, -numValue);
-                    } else if (currentVal === '-') {
-                      handleBalanceChange(player.id, '');
-                    } else {
-                      handleBalanceChange(player.id, '-');
-                    }
-                  }}
-                >
-                  <Text style={styles.signButtonText}>
-                    {balanceType === 'negative' ? '-' : '+'}
-                  </Text>
-                </TouchableOpacity>
-                
-                <Text style={styles.currencySymbol}>$</Text>
-                <TextInput
-                  style={[
-                    styles.balanceInput,
-                    balanceType === 'positive' ? styles.positiveBalance : 
-                    balanceType === 'negative' ? styles.negativeBalance : null,
-                    isEditing && styles.focusedInput
-                  ]}
-                  keyboardType="decimal-pad"
-                  value={balance === '-' ? '' : String(Math.abs(parseFloat(balance) || 0))}
-                  onChangeText={(value) => {
-                    if (balanceType === 'negative' && value !== '' && value !== '0') {
-                      handleBalanceChange(player.id, -Math.abs(parseFloat(value) || 0));
-                    } else {
-                      handleBalanceChange(player.id, value);
-                    }
-                  }}
-                  onFocus={() => {
-                    setEditingPlayerId(player.id);
-                  }}
-                  onBlur={() => {
-                    // Don't reset editingPlayerId here to keep the auto-scroll working
-                  }}
-                  selectTextOnFocus
-                  placeholder="0.00"
-                  returnKeyType="next"
-                  onSubmitEditing={() => {
-                    // Move to next input
-                    const currentIndex = selectedPlayers.findIndex(p => p.id === player.id);
-                    if (currentIndex < selectedPlayers.length - 1) {
-                      setEditingPlayerId(selectedPlayers[currentIndex + 1].id);
-                    } else {
-                      setEditingPlayerId(null);
-                      Keyboard.dismiss();
-                    }
-                  }}
-                />
-              </View>
-            </View>
-          );
-        })}
-      </ScrollView>
-      
-      <View style={styles.balanceNote}>
-        <MaterialIcons name="info-outline" size={20} color="#7F8C8D" />
-        <Text style={styles.balanceNoteText}>
-          The sum of all balances must equal zero
-        </Text>
-      </View>
-    </KeyboardAvoidingView>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -631,12 +608,16 @@ const PreSettlementScreen = ({ navigation, route }) => {
         </View>
       </LinearGradient>
       
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
         {step === 1 && renderGameTitleStep()}
         {step === 2 && renderPlayersStep()}
         {step === 3 && renderBalancesStep()}
         
-        {/* Only show bottom buttons when keyboard is not visible in balance step */}
+        {/* Bottom buttons - hide when keyboard is visible on balance step */}
         {(step !== 3 || !keyboardVisible) && (
           <View style={styles.buttonsContainer}>
             <TouchableOpacity
@@ -650,9 +631,9 @@ const PreSettlementScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         )}
-      </View>
+      </KeyboardAvoidingView>
       
-      {/* Add Player Modal */}
+      {/* Modals remain the same */}
       <Modal
         visible={showAddPlayerModal}
         transparent={true}
@@ -698,7 +679,6 @@ const PreSettlementScreen = ({ navigation, route }) => {
         </View>
       </Modal>
       
-      {/* Edit Player Modal */}
       <Modal
         visible={showEditPlayerModal}
         transparent={true}
@@ -744,7 +724,6 @@ const PreSettlementScreen = ({ navigation, route }) => {
         </View>
       </Modal>
       
-      {/* Player Options Modal */}
       <Modal
         visible={showPlayerOptionsModal}
         transparent={true}
@@ -823,7 +802,7 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   spacer: {
-    width: 34, // Same as back button size for balance
+    width: 34,
   },
   stepIndicator: {
     flexDirection: 'row',
@@ -1000,13 +979,14 @@ const styles = StyleSheet.create({
     color: '#7F8C8D',
   },
   
-  // NEW IMPROVED BALANCE STEP STYLES
+  // SIMPLIFIED BALANCE STEP STYLES
   balancesContainer: {
     flex: 1,
   },
   balancesHeader: {
     padding: 20,
-    paddingBottom: 15,
+    paddingBottom: 10,
+    backgroundColor: '#F0F4F8',
   },
   balanceSummary: {
     flexDirection: 'row',
@@ -1037,12 +1017,12 @@ const styles = StyleSheet.create({
   balanceUneven: {
     color: '#E74C3C',
   },
-  balanceScrollView: {
+  balancesList: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  balanceScrollContent: {
-    paddingBottom: 20,
+  balancesListContent: {
+    paddingVertical: 10,
   },
   balanceItem: {
     flexDirection: 'row',
